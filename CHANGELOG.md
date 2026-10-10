@@ -19,14 +19,27 @@ código ejecutable), MAJOR/MINOR/PATCH se interpretan así:
   mejoras de redacción que no cambian el comportamiento esperado.
 
 **Mientras `MAJOR` sea `0` (pre-release)** cualquier versión puede introducir
-cambios de comportamiento; la etiqueta `1.0.0` se reserva para cuando se
-cumpla la *Puerta de salida hacia 1.0.0* (más abajo). No existe ninguna
-versión `1.0.0` publicada.
+cambios de comportamiento. La etiqueta `1.0.0` se asignó el 2026-10-09 al
+cumplirse la *Puerta de salida hacia 1.0.0* (más abajo).
+
+## [1.0.0] — 2026-10-09
+
+Primera versión estable. Se asigna al cumplirse la *Puerta de salida hacia
+1.0.0* (definición más abajo). No cambia el contenido de `0.9.0` salvo la
+URL del repositorio en `LICENSE` y la sincronización de la documentación.
+
+### Estado de la puerta hacia 1.0.0 (cumplida)
+- **Pruebas de comportamiento:** 16 de 16 ítems cumplidos según
+  `tests/results/RESUMEN.md` (Claude Code, Sonnet 5.5, effort medium, hooks
+  activos; ronda 3, 2026-10-09). TEST-00, TEST-02b, TEST-07 y TEST-13 en
+  PASS 3/3.
+- **Suite estructural y CI:** `structural-tests` en verde en GitHub sobre el
+  commit de 0.9.0.
+- **`LICENSE`:** con la URL real del repositorio y sin placeholders.
 
 ## [0.9.0] — Pre-release
 
-Primera versión publicada. **No existe ninguna versión 1.0.0**: se asignará
-al cumplir la *Puerta de salida hacia 1.0.0* (abajo).
+Primera versión publicada (pre-release).
 
 ### Contenido
 - **Núcleo siempre cargado** (`core/00`–`05`): identidad con el rol
@@ -64,12 +77,6 @@ al cumplir la *Puerta de salida hacia 1.0.0* (abajo).
   fuera de alcance, no editar sin criterio, preguntar antes de romper una
   restricción literal) viven en el núcleo, no solo en módulos condicionales.
 
-### Estado de la puerta hacia 1.0.0
-Ronda 3 (2026-10-09; Claude Code, Sonnet 5.5, effort medium, hooks):
-16 de 16 ítems de pruebas cumplidos (`tests/results/RESUMEN.md`). Pendiente
-para la puerta: el CI en verde en GitHub (ítem 6), que solo puede comprobarse
-tras publicar el repositorio.
-
 ## Puerta de salida hacia 1.0.0
 
 Definición única y vinculante (decidida el 2026-09-26; `tests/GUIA_BENCHMARK.md`
@@ -96,8 +103,6 @@ cumpla **todo**:
 
 ## Pendientes conocidos
 
-- Tener el CI en verde en GitHub (ítem 6 de la puerta) para poder etiquetar
-  `1.0.0`.
 - Validar en uso real los hooks de Codex, Cursor y Gemini CLI (solo
   validados sin LLM, contra la documentación oficial).
 - Subagents para Cursor (campo `readonly`) y Gemini CLI.

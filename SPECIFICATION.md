@@ -357,12 +357,12 @@ externo que ya no existe; las mitigaciones están en el núcleo
 
 ## 9. Próximos pasos
 
-Estado (versión 0.9.0, pre-release; **no existe ninguna 1.0.0 publicada**):
+Estado (versión 1.0.0; puerta de salida cumplida el 2026-10-09):
 instalación documentada por runtime, Skills generadas y compartidas por
 Claude Code, Codex, Cursor y Gemini CLI, Subagents de solo lectura, tests
 estructurales, script de sandbox para el benchmark, núcleo compacto
 sincronizado con los adaptadores sin `@import`, empaquetado determinista,
-README y CHANGELOG. La etiqueta 1.0.0 solo se asigna al cumplir la
+README y CHANGELOG. La etiqueta 1.0.0 se asignó al cumplir la
 "Puerta de salida hacia 1.0.0" de `CHANGELOG.md`. Lo que sigue pendiente:
 
 1. **Validación de comportamiento real contra un runtime.** Los tests de
