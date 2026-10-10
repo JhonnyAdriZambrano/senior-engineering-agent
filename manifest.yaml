@@ -1,0 +1,78 @@
+agent:
+  id: senior-engineering-agent
+  name: "Senior Engineering Agent"
+  version: "0.9.0"   # pre-release; 1.0.0 solo tras la puerta de salida (CHANGELOG.md)
+  role: "Ingeniero de Software Senior y Arquitecto de Tecnologías de la Información Senior"
+  description: >
+    Ingeniero de Software Senior y Arquitecto de Tecnologías de la Información
+    Senior. Trabaja sobre repositorios reales con evidencia, seguridad, cambio mínimo y honestidad
+    epistémica explícita. Especificación portable: el mismo núcleo puede
+    materializarse en distintos runtimes vía adapters/.
+
+# Se cargan SIEMPRE, en este orden, en cualquier runtime.
+core_modules:
+  - core/00-identity.md
+  - core/01-non-negotiable-rules.md
+  - core/02-certainty-classification.md
+  - core/03-task-classification.md
+  - core/04-user-interaction.md
+  - core/05-final-priorities.md
+
+# Se cargan BAJO DEMANDA según el modo de tarea (ver core/03-task-classification.md)
+# o según el tema detectado en la solicitud. Cada adaptador decide CÓMO
+# implementa esta condicionalidad con el mecanismo nativo de su runtime.
+#
+# El campo `triggers` admite tres tipos de valor, semánticamente distintos:
+#   1. Palabra clave de tema (ej. "auth", "rendimiento") — coincidencia
+#      heurística entre el contenido de la solicitud y el tema del módulo.
+#   2. "task_mode:X" — coincide con el modo declarado en
+#      core/03-task-classification.md (ej. "task_mode:IMPLEMENTATION").
+#   3. "knowledge_contract:incomplete" — no es un tema ni un modo de tarea:
+#      es una comprobación de existencia/completitud sobre los archivos
+#      listados en `knowledge_contract` (más abajo). Se evalúa una sola vez
+#      al inicio de la sesión, no por el contenido de cada mensaje. La
+#      comprobación y la mención breve las hace el NÚCLEO (core/00-identity.md,
+#      siempre cargado); este trigger solo activa el módulo con el
+#      procedimiento completo de descubrimiento.
+conditional_modules:
+  - id: security
+    path: modules/security.md
+    triggers: [auth, jwt, secretos, sql, cifrado, api-publica, datos-sensibles, "task_mode:REVIEW"]
+
+  - id: engineering-quality-and-performance
+    path: modules/engineering-quality-and-performance.md
+    triggers: [rendimiento, algoritmos, base-de-datos, escalabilidad, patrones, "task_mode:ARCHITECTURE"]
+
+  - id: repository-workflow
+    path: modules/repository-workflow.md
+    triggers: ["task_mode:IMPLEMENTATION", "task_mode:DEBUG", "task_mode:REFACTOR", "task_mode:REVIEW"]
+
+  - id: project-bootstrap
+    path: modules/project-bootstrap.md
+    triggers: ["task_mode:GREENFIELD"]
+
+  - id: scope-regression-change-control
+    path: modules/scope-regression-change-control.md
+    triggers: ["task_mode:IMPLEMENTATION", "task_mode:REFACTOR", "task_mode:REVIEW", git, deploy, migracion]
+
+  - id: adaptive-behavior-and-referencing
+    path: modules/adaptive-behavior-and-referencing.md
+    triggers: [correccion-previa, citas, documentacion-oficial, decision-arquitectura]
+
+  - id: project-knowledge-bootstrap
+    path: modules/project-knowledge-bootstrap.md
+    # Disparador distinto a los demás: no es un tema ni un task_classification,
+    # es una comprobación de existencia sobre knowledge_contract (ver abajo).
+    triggers: ["knowledge_contract:incomplete"]
+
+capabilities: capabilities.yaml
+
+# Archivos que la especificación ESPERA encontrar en cada proyecto real.
+# El agente no los trae consigo: son responsabilidad del repositorio.
+knowledge_contract:
+  required:
+    - PROJECT_CONTEXT.md
+    - ARCHITECTURE.md
+  optional:
+    - DECISIONS.md
+    - ACTIVE_TASK.md

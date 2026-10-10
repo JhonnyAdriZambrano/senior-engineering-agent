@@ -1,0 +1,10 @@
+{
+  "hooks": {
+    "SessionStart": [
+      { "hooks": [ { "type": "command", "command": "python3 \"$(git rev-parse --show-toplevel)/senior-engineering-agent/adapters/hooks/sea_hooks.py\" session-start --runtime codex", "timeout": 30 } ] }
+    ],
+    "PreToolUse": [
+      { "matcher": "Bash", "hooks": [ { "type": "command", "command": "python3 \"$(git rev-parse --show-toplevel)/senior-engineering-agent/adapters/hooks/sea_hooks.py\" pre-tool --runtime codex", "timeout": 30 } ] }
+    ]
+  }
+}

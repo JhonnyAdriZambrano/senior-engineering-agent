@@ -1,0 +1,10 @@
+{
+  "hooks": {
+    "SessionStart": [
+      { "hooks": [ { "type": "command", "name": "sea-knowledge-check", "command": "python3 \"$GEMINI_PROJECT_DIR/senior-engineering-agent/adapters/hooks/sea_hooks.py\" session-start --runtime gemini-cli" } ] }
+    ],
+    "BeforeTool": [
+      { "matcher": "run_shell_command", "hooks": [ { "type": "command", "name": "sea-destructive-guard", "command": "python3 \"$GEMINI_PROJECT_DIR/senior-engineering-agent/adapters/hooks/sea_hooks.py\" pre-tool --runtime gemini-cli" } ] }
+    ]
+  }
+}

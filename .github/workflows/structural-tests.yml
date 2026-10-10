@@ -1,0 +1,50 @@
+# CI del repositorio de la especificación: SOLO la suite estructural (sin LLM).
+# El benchmark de comportamiento (TEST-00…TEST-13) es manual, en sandbox
+# (tests/GUIA_BENCHMARK.md), porque requiere una cuenta de Claude Code y
+# criterio humano. Sin secretos: permisos de solo lectura.
+name: structural-tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  structural:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"   # trae tomllib: la validación TOML nunca se omite
+
+      - name: Dependencias
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pyyaml
+          command -v zip >/dev/null && command -v unzip >/dev/null \
+            || (sudo apt-get update && sudo apt-get install -y zip unzip)
+
+      - name: Vistas derivadas al día (Skills y núcleo compacto)
+        run: |
+          python3 scripts/generate_skills.py --check
+          python3 scripts/generate_compact.py --check
+
+      - name: Sintaxis de los scripts bash
+        run: |
+          for f in scripts/*.sh tests/*.sh tests/behavioral/*.sh tests/sandbox/*.sh; do
+            bash -n "$f"
+          done
+
+      - name: Compilación de los scripts Python sin LLM
+        run: python3 -m py_compile adapters/hooks/sea_hooks.py tests/sandbox/finish_test.py scripts/check_results.py
+
+      - name: Suite estructural (incluye build determinista del ZIP)
+        run: python3 tests/test_agent.py

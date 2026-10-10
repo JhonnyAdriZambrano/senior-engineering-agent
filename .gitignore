@@ -1,0 +1,57 @@
+# Senior Engineering Agent — .gitignore
+#
+# Principio: este repositorio es la especificación del agente (CORE +
+# adapters + docs + tests). NO debe contener nunca secretos, artefactos
+# generados, ni conocimiento real de un proyecto concreto (eso vive en el
+# repositorio de cada proyecto destino, no aquí).
+
+# --- Secretos y credenciales (nunca deben versionarse) ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets/
+**/credentials.json
+**/*token*
+**/*secret*
+
+# --- Artefactos de build/distribución (se regeneran, no se versionan) ---
+/dist/
+/build/
+*.zip
+!scripts/**/*.zip
+
+# --- Salida del arnés de comportamiento (tests/behavioral/run_scenarios.sh) ---
+tests-log-*/
+
+# --- Registros locales del benchmark (corridas, transcripciones, RESUMEN.md,
+#     rondas archivadas). Son datos de cada evaluador, no parte del agente;
+#     solo se versiona la plantilla. ---
+tests/results/*
+!tests/results/_TEMPLATE.md
+
+# --- Historial interno de auditorías (local; el CHANGELOG público resume) ---
+docs/internal/
+
+# --- Configuración local de runtimes que pudiera colarse durante pruebas ---
+.mcp.json
+.codex/config.toml
+.gemini/settings.json
+.claude/settings.local.json
+
+# --- Sistema operativo / editor ---
+.DS_Store
+Thumbs.db
+*.swp
+.vscode/
+.idea/
+
+# --- Python (usado por los scripts de test) ---
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# --- Conocimiento real de un proyecto de prueba (si alguna vez se prueba
+#     este repo "dogfooding" contra sí mismo, no versionar esos datos aquí) ---
+/sandbox/

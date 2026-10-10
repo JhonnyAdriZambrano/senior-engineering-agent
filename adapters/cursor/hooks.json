@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "hooks": {
+    "sessionStart": [ { "command": "python3 senior-engineering-agent/adapters/hooks/sea_hooks.py session-start --runtime cursor" } ],
+    "beforeShellExecution": [ { "command": "python3 senior-engineering-agent/adapters/hooks/sea_hooks.py pre-tool --runtime cursor" } ]
+  }
+}
