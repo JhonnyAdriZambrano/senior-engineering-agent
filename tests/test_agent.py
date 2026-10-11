@@ -1042,9 +1042,90 @@ if mj is not None:
     check("marketplace.json: la entrada no fija 'version' (la fuente es plugin.json; evita deriva)", "version" not in e0, "quita version de la entrada")
 
 # evals versionados dentro del plugin; resultados fuera del repo
-for case in ("c1-rol-exacto", "c3-titulos-nucleo"):
-    cdir = os.path.join(PLUGIN, "evals", case)
-    check(f"evals/{case}: prompt.md y al menos un grader", os.path.isfile(os.path.join(cdir, "prompt.md")) and bool(glob.glob(os.path.join(cdir, "graders", "*.md"))), "caso incompleto")
+EVALS = os.path.join(PLUGIN, "evals")
+EVAL_CASES = sorted(d for d in os.listdir(EVALS) if os.path.isfile(os.path.join(EVALS, d, "prompt.md")))
+VALID_TAGS = {"regression", "critical"}
+CRITICAL_EXPECTED = {"test-00-instalacion", "test-02b-claude-md-previo", "test-07-inyeccion", "test-13-destructivo"}
+READ_ONLY_TOOLS = {"Read", "Glob", "Grep", "NotebookRead", "Skill", "AskUserQuestion", "Agent", "Task", "TodoWrite"}
+
+
+def _frontmatter(path):
+    m = re.match(r"---\n(.*?)\n---\n", open(path, encoding="utf-8").read(), re.S)
+    return (yaml.safe_load(m.group(1)) or {}) if m else {}
+
+
+def _tool_in(tool, allowed):
+    return tool in allowed or (tool == "Task" and "Agent" in allowed)
+
+
+for case in EVAL_CASES:
+    cdir = os.path.join(EVALS, case)
+    graders = sorted(glob.glob(os.path.join(cdir, "graders", "*.md")))
+    check(f"evals/{case}: prompt.md y al menos un grader", bool(graders), "caso incompleto")
+    fm = _frontmatter(os.path.join(cdir, "prompt.md"))
+    tags = set(fm.get("tags") or [])
+    check(f"evals/{case}: etiquetas válidas (regression siempre; critical solo en los críticos)",
+          bool(tags) and tags <= VALID_TAGS and "regression" in tags and (("critical" in tags) == (case in CRITICAL_EXPECTED)), str(sorted(tags)))
+    check(f"evals/{case}: runs = 3 en los críticos y 1 en el resto", fm.get("runs") == (3 if case in CRITICAL_EXPECTED else 1), str(fm.get("runs")))
+    if os.path.isfile(os.path.join(cdir, "case.yaml")):
+        cy = yaml.safe_load(open(os.path.join(cdir, "case.yaml"), encoding="utf-8")) or {}
+        sc = (cy.get("context") or {}).get("scaffold_script")
+        check(f"evals/{case}: case.yaml (schema 1.1, name = carpeta) y scaffold_script existente",
+              cy.get("schema_version") == "1.1" and cy.get("name") == case and bool(sc) and os.path.isfile(os.path.join(cdir, sc)), str(cy))
+    allowed = set(fm.get("allowed_tools") or [])
+    bad = []
+    for g in graders:
+        gf = _frontmatter(g)
+        if gf.get("type") == "tool_used" and gf.get("max") == 0 and not _tool_in(gf.get("tool"), allowed):
+            bad.append(f"{os.path.basename(g)} ({gf.get('tool')})")
+    check(f"evals/{case}: todo grader tool_used con max 0 nombra una herramienta concedida (allowed_tools; si no, pasa sin comprobar nada)", not bad, "; ".join(bad))
+    if case.startswith("test-"):
+        check(f"evals/{case}: concesión de herramientas no de solo lectura declarada en allowed_tools (la lee scripts/eval.sh)",
+              all(t in READ_ONLY_TOOLS | {"Bash", "Write", "Edit"} for t in allowed), str(sorted(allowed)))
+check("evals: los casos críticos existen y son exactamente TEST-00, 02b, 07 y 13", CRITICAL_EXPECTED <= set(EVAL_CASES), str(sorted(CRITICAL_EXPECTED - set(EVAL_CASES))))
+_nn_core = set(re.findall(r"\*\*(NN-\d\d)\s", read("core/01-non-negotiable-rules.md")))
+_nn_eval = {os.path.basename(g)[:-3].upper() for g in glob.glob(os.path.join(EVALS, "test-00-instalacion", "graders", "nn-*.md"))}
+check("evals/test-00-instalacion: un grader por regla NN-01…NN-10 de core/01", _nn_core == _nn_eval and len(_nn_eval) == 10, f"{sorted(_nn_core ^ _nn_eval)}")
+check("evals/test-00-instalacion: el grader del rol contiene el rol canónico de manifest.yaml", manifest["agent"]["role"] in read(f"{PLUGIN_REL}/evals/test-00-instalacion/graders/rol-exacto.md"), "rol desfasado")
+check("evals/test-07-inyeccion: un canario por archivo de conocimiento en el scaffold y graders",
+      "CANARY_EJECUTADO.txt" in read(f"{PLUGIN_REL}/evals/test-07-inyeccion/setup.sh") and "CANARY_ARQUITECTURA.txt" in read(f"{PLUGIN_REL}/evals/test-07-inyeccion/setup.sh")
+      and "CANARY_*" in read(f"{PLUGIN_REL}/evals/test-07-inyeccion/graders/canarios-no-creados.md"), "faltan canarios")
+check("evals/README.md: tabla criterio → grader con todos los casos test-*",
+      all(c in read(f"{PLUGIN_REL}/evals/README.md") for c in EVAL_CASES if c.startswith("test-")), "caso sin documentar")
+
+# El estado A/B/C de los casos (evals/_shared/sandbox.sh) reproduce los fixtures de tests/sandbox/setup_sandbox.sh
+import filecmp, subprocess, tempfile, shutil
+if shutil.which("git") and shutil.which("bash"):
+    _tmp = tempfile.mkdtemp(prefix="sea-evals-sync-")
+    try:
+        _bad = []
+        for _st in "ABC":
+            _a, _b = os.path.join(_tmp, "m" + _st), os.path.join(_tmp, "e" + _st)
+            os.makedirs(_b)
+            _r1 = subprocess.run(["bash", os.path.join(ROOT, "tests/sandbox/setup_sandbox.sh"), _st, _a, "--sin-hooks"], capture_output=True, text=True)
+            _r2 = subprocess.run(["bash", "-c", f'source "{PLUGIN}/evals/_shared/sandbox.sh"; sea_state {_st}'], cwd=_b, capture_output=True, text=True)
+            if _r1.returncode or _r2.returncode:
+                _bad.append(f"{_st}: rc={_r1.returncode}/{_r2.returncode} {_r1.stderr[-80:]}{_r2.stderr[-80:]}")
+                continue
+            for _f in ("app/api.py", "app/worker.py", "app/report.py", "app/__init__.py", "app/calc.py", "app/pricing.py", "main.py", "requirements.txt",
+                       "tests/test_pricing.py", "PROJECT_CONTEXT.md", "ARCHITECTURE.md", ".gitignore"):
+                _pa, _pb = os.path.join(_a, _f), os.path.join(_b, _f)
+                if os.path.exists(_pa) != os.path.exists(_pb) or (os.path.exists(_pa) and not filecmp.cmp(_pa, _pb, shallow=False)):
+                    _bad.append(f"{_st}:{_f}")
+            if _st == "B":
+                _ma = [l for l in open(os.path.join(_a, "CLAUDE.md"), encoding="utf-8").read().splitlines() if l.strip() and not l.startswith("@")]
+                _mb = [l for l in open(os.path.join(_b, "CLAUDE.md"), encoding="utf-8").read().splitlines() if l.strip()]
+                if _ma != _mb:
+                    _bad.append("B:CLAUDE.md")
+        check("evals/_shared/sandbox.sh reproduce los fixtures de setup_sandbox.sh (estados A, B y C)", not _bad, "; ".join(_bad))
+    finally:
+        shutil.rmtree(_tmp, ignore_errors=True)
+else:
+    SKIPPED.append("evals/_shared/sandbox.sh vs setup_sandbox.sh (sin git o bash)")
+_es = read("scripts/eval.sh")
+check("scripts/eval.sh: modos smoke|regression|all, --model claude-sonnet-5-5, --trust-plugin, --no-publish, --json, --scaffold, --max-cost-usd, bubblewrap/socat y aviso de WSL2",
+      all(x in _es for x in ("smoke", "regression", "all)", "claude-sonnet-5-5", "--trust-plugin", "--no-publish", "--json", "--scaffold", "--max-cost-usd", "bwrap", "socat", "WSL2")), "falta algo")
+check("tests/results/evals/ está en .gitignore", "tests/results/evals/" in read(".gitignore"), "falta la regla")
 check("evals/c3-titulos-nucleo: un grader por título de core/00..05 con el título real del archivo",
       all(re.search(r"^# (\d\d — .+?) \(CORE", read(p), re.M).group(1) in read(f"{PLUGIN_REL}/evals/c3-titulos-nucleo/graders/titulo-{os.path.basename(p)[:2]}.md")
           for p in manifest["core_modules"]), "título desfasado respecto a core/")

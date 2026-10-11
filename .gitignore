@@ -58,3 +58,6 @@ __pycache__/
 
 # --- Resultados de `claude plugin eval` (se descargan, no se versionan) ---
 plugins/**/evals/results/
+
+# --- Salida de scripts/eval.sh (claude plugin eval): se descarga, no se versiona ---
+tests/results/evals/

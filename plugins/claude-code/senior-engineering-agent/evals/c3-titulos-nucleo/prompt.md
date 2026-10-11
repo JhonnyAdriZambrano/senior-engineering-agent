@@ -1,4 +1,6 @@
 ---
+tags: [regression]
+runs: 1
 description: C3 (P-1b). Los seis títulos de core/00..05 solo se conocen si el núcleo se inyectó completo por los seis hooks SessionStart.
 max_turns: 8
 allowed_tools: [Read, Glob, Grep]

@@ -198,12 +198,18 @@ Esto es validación **estructural** (estática), no un test de comportamiento
 real del agente. Para eso existen dos niveles: `tests/BENCHMARK.md`
 (14 pruebas formales con criterios objetivos PASS/PARTIAL/FAIL y
 diagnóstico de causa raíz — Modelo/Prompt/Contexto del proyecto/Tooling) y
-`tests/behavioral/run_scenarios.sh` (**OBSOLETO**: lo sustituirá `claude plugin eval` en E3; 9 de esas 14 automatizadas contra
+`tests/behavioral/run_scenarios.sh` (**OBSOLETO**: lo sustituye `claude plugin eval`, ver abajo; 9 de esas 14 automatizadas contra
 una instalación real de Claude Code vía `claude -p --output-format json`).
 Ambos son screening heurístico, no perfecto — revisa `tests/MANUAL_SCENARIOS.md`
 para el detalle narrativo de cada caso. **Procedimiento paso a paso (sandbox,
 fixtures, repeticiones, qué PASS del script no creer aún):
 `tests/GUIA_BENCHMARK.md`.**
+
+**Evaluación automatizada (`claude plugin eval`).** `bash scripts/eval.sh <smoke|regression|all>` ejecuta los casos de
+`plugins/claude-code/senior-engineering-agent/evals/` (13 casos del benchmark automatizados total o parcialmente, más 2 indicadores del
+núcleo) y mide el valor del agente frente al modelo solo (Δ). Requiere `bubblewrap` y `socat` (WSL2 en Windows) y consume plan o API; los
+resultados van a `tests/results/evals/` (no se versiona). Qué se automatiza, qué es manual y la tabla criterio → grader: `evals/README.md`;
+procedimiento: `tests/GUIA_BENCHMARK.md` §6b.
 
 ## Generar el ZIP de distribución
 

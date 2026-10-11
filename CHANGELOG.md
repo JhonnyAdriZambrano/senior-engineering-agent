@@ -24,8 +24,20 @@ cumplirse la *Puerta de salida hacia 1.0.0* (más abajo).
 
 ## [Sin publicar]
 
-Etapas E1 (remediación) y E2 (plugin de Claude Code) del plan de mejora
+Etapas E1 (remediación), E2 (plugin de Claude Code) y E3a (evaluación automatizada) del plan de mejora
 posterior a 1.0.0. No cambian la versión de `manifest.yaml` ni `core/`.
+
+### Añadido (E3a: evaluación automatizada con `claude plugin eval`)
+
+- 13 casos nuevos en `plugins/claude-code/senior-engineering-agent/evals/` (TEST-00, 01, 02a/2b/2c, 03, 04, 06, 07, 08, 09, 12 y 13; el resto del
+  benchmark queda MANUAL: 05, 10 y 11) con scaffold de los estados A/B/C, graders derivados de los criterios PASS de `tests/BENCHMARK.md` y
+  `evals/README.md` (clasificación AUTOMATIZABLE/PARCIAL/MANUAL y tabla criterio → grader). Etiquetas `regression` y `critical` (TEST-00, 02b, 07, 13).
+- `scripts/eval.sh <smoke|regression|all>` y `scripts/eval_report.py` (tabla WITH / W/OUT / Δ / corridas perfectas / coste y transcripciones);
+  `tests/results/evals/` no se versiona.
+- `tests/test_agent.py`: estructura de los casos (prompt, graders, etiquetas, `runs`, scaffold), graders `max: 0` solo sobre herramientas
+  concedidas, sincronía de los fixtures con `tests/sandbox/setup_sandbox.sh`.
+- `tests/GUIA_BENCHMARK.md` §6b «Evaluación automatizada»; `tests/behavioral/run_scenarios.sh` sigue obsoleto (no se borra).
+- No cambian `core/`, `modules/`, las reglas NN, la versión ni `tests/BENCHMARK.md`.
 
 ### Añadido (E2: plugin de Claude Code generado)
 - **Plugin** `plugins/claude-code/senior-engineering-agent/`, vista GENERADA por

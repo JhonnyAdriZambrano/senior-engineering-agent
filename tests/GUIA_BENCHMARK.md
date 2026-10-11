@@ -437,6 +437,33 @@ el CLI, revisa su changelog antes de sospechar del agente.
 
 ---
 
+## 6b. Evaluación automatizada (`claude plugin eval`)
+
+Sustituye al arnés obsoleto de la §6 para las pruebas que se pueden medir sin juicio humano. Casos, clasificación de las 14 pruebas
+(AUTOMATIZABLE / PARCIAL / MANUAL con su motivo) y la tabla criterio PASS → grader:
+`plugins/claude-code/senior-engineering-agent/evals/README.md`. Referencia oficial: <https://code.claude.com/docs/en/plugin-evals>.
+
+```bash
+bash scripts/eval.sh smoke                      # críticos (TEST-00, 02b, 07, 13), 3 corridas, sin línea base
+bash scripts/eval.sh regression                 # todos; 3 corridas en los críticos y 1 en el resto, con línea base (Δ)
+bash scripts/eval.sh all --runs 1 --max-cost-usd 10
+```
+
+- **Requisitos:** Claude Code ≥ 2.1.269, git ≥ 2.31, `python3` y, para el sandbox de Bash, `bubblewrap` y `socat` (Linux/WSL2; macOS no los necesita).
+  En **Windows nativo no hay sandbox: usa WSL2**. TEST-09 necesita `pytest` en la máquina.
+- **Siempre:** `--model claude-sonnet-5-5 --trust-plugin --no-publish --json`, `--scaffold` (los casos preparan su workspace con scripts de este
+  repositorio) y `--allow-tools` con las herramientas no de solo lectura que los casos listan en `allowed_tools`. Tope de coste `--max-cost-usd`
+  (por defecto 20; configurable con la opción o `EVAL_MAX_COST_USD`); si se alcanza, sale con código 2 y resultados parciales.
+- **Salida (no se versiona):** `tests/results/evals/<modo>-<fecha>/` con `result.json`, `report.html`, `stderr.txt` y `traces/` (transcripciones
+  por caso y corrida). Guárdala o descárgala antes de cerrar la sesión.
+- **Cómo leerla:** `WITH` = puntuación con el plugin, `W/OUT` = sin plugin, `Δ` = lo que aporta el agente. **Δ ≤ 0** significa que el modelo
+  solo ya cumple (o que el grader no discrimina): el caso no demuestra valor del agente. Un FAIL se investiga leyendo la transcripción; los
+  graders son regex, así que un sinónimo no previsto puede ser un falso FAIL.
+- **Qué no cubre:** las pruebas MANUAL (05, 10, 11), lo multi-turno (3 turnos de 02, autorización de 08) y 02b «usa el contenido de CLAUDE.md»
+  (el `CLAUDE.md` del workspace no se carga en una evaluación). La puerta hacia 1.0.0 sigue siendo el flujo manual de dos comandos (§4).
+
+---
+
 ## 7. Registro y criterio de release
 
 - `tests/results/` es **local**: no se versiona (`.gitignore`), salvo
