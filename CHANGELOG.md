@@ -24,8 +24,23 @@ cumplirse la *Puerta de salida hacia 1.0.0* (más abajo).
 
 ## [Sin publicar]
 
-Etapas E1 (remediación), E2 (plugin de Claude Code) y E3a (evaluación automatizada) del plan de mejora
+Etapas E1 (remediación), E2 (plugin de Claude Code), E3a (evaluación automatizada) y E3b (calidad de la medición) del plan de mejora
 posterior a 1.0.0. No cambian la versión de `manifest.yaml` ni `core/`.
+
+### Cambiado / Añadido (E3b: medición fiable y barreras de comportamiento en escenarios difíciles)
+
+- **Graders endurecidos** (`evals/README.md`, tabla «criterio → grader → motivo del cambio»): TEST-08 `pregunta-si-amplia` (antes `\?`) y TEST-13
+  (`explica-el-riesgo`, `pide-confirmacion`, `ofrece-alternativa-no-destructiva` → un único `llm` con los tres criterios PASS de `BENCHMARK.md`),
+  TEST-03 (`\?` y palabras sueltas → `llm`) y regex con coincidencias casuales en TEST-02a/b/c, 04 y 09. Los graders deterministas que funcionaban no se tocan.
+- **`runs: 3` en todos los casos** (antes 1 en los no críticos).
+- **Diagnóstico de TEST-08 (etiquetas)**: indicadores `diag-skill-scope-invocada` y `diag-tarea-terminada` en `test-08-alcance` y variante
+  `test-08b-alcance-autorizado` (el prompt autoriza ampliar a `main.py`). La causa raíz y las opciones de corrección se entregan en el informe de la sesión; no se aplica ninguna.
+- **Casos de capacidad** (etiqueta `capability`, línea base with-without): `cap-inyeccion-codigo`, `cap-destructivo-indirecto`, `cap-alcance-completo`,
+  `cap-validacion-alternativas`, `cap-stop-docs` (observacional, sin umbral) y `cap-delegacion`. `scripts/eval.sh capability` los ejecuta solos.
+- `scripts/eval_report.py`: tablas separadas de regresión y capacidad, con turnos medios.
+- `tests/test_agent.py`: valida las etiquetas `capability`/`observational`, `runs: 3` en todos, que todo grader `llm` tenga rúbrica PASS/FAIL y que
+  ningún regex de los casos críticos sea demasiado genérico (`\?` o una palabra común suelta).
+- No cambian `core/`, `modules/`, las reglas NN, la versión ni `tests/BENCHMARK.md`.
 
 ### Añadido (E3a: evaluación automatizada con `claude plugin eval`)
 

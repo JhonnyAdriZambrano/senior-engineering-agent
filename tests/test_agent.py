@@ -1044,7 +1044,7 @@ if mj is not None:
 # evals versionados dentro del plugin; resultados fuera del repo
 EVALS = os.path.join(PLUGIN, "evals")
 EVAL_CASES = sorted(d for d in os.listdir(EVALS) if os.path.isfile(os.path.join(EVALS, d, "prompt.md")))
-VALID_TAGS = {"regression", "critical"}
+VALID_TAGS = {"regression", "critical", "capability", "observational"}
 CRITICAL_EXPECTED = {"test-00-instalacion", "test-02b-claude-md-previo", "test-07-inyeccion", "test-13-destructivo"}
 READ_ONLY_TOOLS = {"Read", "Glob", "Grep", "NotebookRead", "Skill", "AskUserQuestion", "Agent", "Task", "TodoWrite"}
 
@@ -1052,6 +1052,42 @@ READ_ONLY_TOOLS = {"Read", "Glob", "Grep", "NotebookRead", "Skill", "AskUserQues
 def _frontmatter(path):
     m = re.match(r"---\n(.*?)\n---\n", open(path, encoding="utf-8").read(), re.S)
     return (yaml.safe_load(m.group(1)) or {}) if m else {}
+
+
+def _body(path):
+    m = re.match(r"---\n.*?\n---\n(.*)", open(path, encoding="utf-8").read(), re.S)
+    return m.group(1) if m else ""
+
+
+# Palabras comunes que, solas como alternativa de un regex, coinciden por casualidad con cualquier respuesta.
+GENERIC_WORDS = {"crear", "generar", "usa", "usar", "ejecuta", "ejecutar", "corre", "riesgo", "rate", "tasa", "criterio", "comportamiento",
+                 "verificar", "comprobar", "confirm", "permiso", "perder", "pierd", "perdida", "pérdida", "backup", "respaldo", "revert",
+                 "main", "test", "tests", "error", "problema", "cambio", "archivo", "sin", "no", "si", "sí"}
+
+
+def _top_level_alternatives(p):
+    alts, depth, cur, i = [], 0, "", 0
+    while i < len(p):
+        c = p[i]
+        if c == "\\" and i + 1 < len(p):
+            cur += p[i:i + 2]; i += 2; continue
+        depth += (c in "([") - (c in ")]")
+        if c == "|" and depth == 0:
+            alts.append(cur); cur = ""
+        else:
+            cur += c
+        i += 1
+    return alts + [cur]
+
+
+def _regex_too_generic(pattern):
+    """True si el regex es `\\?`/`.`/`.*`, una sola palabra, o tiene como alternativa de primer nivel una palabra común suelta."""
+    p = pattern.strip()
+    if p in ("\\?", "?", ".", ".*", ".+", "[\\s\\S]*", "[\\s\\S]+"):
+        return True
+    alts = [re.sub(r"^\\b|\\b$", "", a.strip()) for a in _top_level_alternatives(p)]
+    words = [a for a in alts if re.fullmatch(r"[a-záéíóúñ]+", a)]
+    return (len(alts) == 1 and len(words) == 1) or any(w in GENERIC_WORDS for w in words)
 
 
 def _tool_in(tool, allowed):
@@ -1064,9 +1100,14 @@ for case in EVAL_CASES:
     check(f"evals/{case}: prompt.md y al menos un grader", bool(graders), "caso incompleto")
     fm = _frontmatter(os.path.join(cdir, "prompt.md"))
     tags = set(fm.get("tags") or [])
-    check(f"evals/{case}: etiquetas válidas (regression siempre; critical solo en los críticos)",
-          bool(tags) and tags <= VALID_TAGS and "regression" in tags and (("critical" in tags) == (case in CRITICAL_EXPECTED)), str(sorted(tags)))
-    check(f"evals/{case}: runs = 3 en los críticos y 1 en el resto", fm.get("runs") == (3 if case in CRITICAL_EXPECTED else 1), str(fm.get("runs")))
+    # Etiquetas: exactamente una de regression|capability; los casos cap-* son capability (nunca regression);
+    # critical solo en los críticos; observational solo acompaña a capability.
+    check(f"evals/{case}: etiquetas válidas (una de regression|capability; critical solo en los críticos; observational solo con capability)",
+          bool(tags) and tags <= VALID_TAGS and len(tags & {"regression", "capability"}) == 1
+          and (("capability" in tags) == case.startswith("cap-"))
+          and (("critical" in tags) == (case in CRITICAL_EXPECTED))
+          and ("observational" not in tags or "capability" in tags), str(sorted(tags)))
+    check(f"evals/{case}: runs = 3 (todos los casos de regresión y de capacidad)", fm.get("runs") == 3, str(fm.get("runs")))
     if os.path.isfile(os.path.join(cdir, "case.yaml")):
         cy = yaml.safe_load(open(os.path.join(cdir, "case.yaml"), encoding="utf-8")) or {}
         sc = (cy.get("context") or {}).get("scaffold_script")
@@ -1079,7 +1120,19 @@ for case in EVAL_CASES:
         if gf.get("type") == "tool_used" and gf.get("max") == 0 and not _tool_in(gf.get("tool"), allowed):
             bad.append(f"{os.path.basename(g)} ({gf.get('tool')})")
     check(f"evals/{case}: todo grader tool_used con max 0 nombra una herramienta concedida (allowed_tools; si no, pasa sin comprobar nada)", not bad, "; ".join(bad))
-    if case.startswith("test-"):
+    # Todo grader llm lleva una rúbrica con condiciones PASS y FAIL literales.
+    bad_llm = [os.path.basename(g) for g in graders if _frontmatter(g).get("type") == "llm"
+               and not (re.search(r"\bPASS\b", _body(g)) and re.search(r"\bFAIL\b", _body(g)))]
+    check(f"evals/{case}: todo grader llm tiene una rúbrica PASS/FAIL", not bad_llm, "; ".join(bad_llm))
+    # Los casos críticos no admiten regex demasiado genéricos (coincidencias casuales).
+    if case in CRITICAL_EXPECTED:
+        generic = []
+        for g in graders:
+            gf = _frontmatter(g)
+            if gf.get("type") == "regex" and _regex_too_generic(str(gf.get("pattern", ""))):
+                generic.append(f"{os.path.basename(g)}: {gf.get('pattern')}")
+        check(f"evals/{case}: ningún regex es demasiado genérico (no `\\?`, ni una sola palabra común)", not generic, "; ".join(generic))
+    if case.startswith(("test-", "cap-")):
         check(f"evals/{case}: concesión de herramientas no de solo lectura declarada en allowed_tools (la lee scripts/eval.sh)",
               all(t in READ_ONLY_TOOLS | {"Bash", "Write", "Edit"} for t in allowed), str(sorted(allowed)))
 check("evals: los casos críticos existen y son exactamente TEST-00, 02b, 07 y 13", CRITICAL_EXPECTED <= set(EVAL_CASES), str(sorted(CRITICAL_EXPECTED - set(EVAL_CASES))))
@@ -1090,8 +1143,9 @@ check("evals/test-00-instalacion: el grader del rol contiene el rol canónico de
 check("evals/test-07-inyeccion: un canario por archivo de conocimiento en el scaffold y graders",
       "CANARY_EJECUTADO.txt" in read(f"{PLUGIN_REL}/evals/test-07-inyeccion/setup.sh") and "CANARY_ARQUITECTURA.txt" in read(f"{PLUGIN_REL}/evals/test-07-inyeccion/setup.sh")
       and "CANARY_*" in read(f"{PLUGIN_REL}/evals/test-07-inyeccion/graders/canarios-no-creados.md"), "faltan canarios")
-check("evals/README.md: tabla criterio → grader con todos los casos test-*",
-      all(c in read(f"{PLUGIN_REL}/evals/README.md") for c in EVAL_CASES if c.startswith("test-")), "caso sin documentar")
+check("evals/README.md: tabla criterio → grader con todos los casos test-* y cap-*",
+      all(c in read(f"{PLUGIN_REL}/evals/README.md") for c in EVAL_CASES if c.startswith(("test-", "cap-"))), "caso sin documentar")
+check("evals/README.md: tabla criterio → grader → motivo del cambio (E3b)", "motivo del cambio" in read(f"{PLUGIN_REL}/evals/README.md").lower(), "falta la tabla de cambios")
 
 # El estado A/B/C de los casos (evals/_shared/sandbox.sh) reproduce los fixtures de tests/sandbox/setup_sandbox.sh
 import filecmp, subprocess, tempfile, shutil

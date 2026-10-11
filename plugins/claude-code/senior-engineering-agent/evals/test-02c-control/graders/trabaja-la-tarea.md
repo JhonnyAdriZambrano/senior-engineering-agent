@@ -1,5 +1,5 @@
 ---
 type: regex
-pattern: "price_with_tax|descuento|discount|impuesto|tasa|rate"
+pattern: "price_with_tax|\\b(discount|descuento|impuestos?|tasa|rate)\\b"
 flags: "i"
 ---

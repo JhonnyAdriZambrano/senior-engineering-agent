@@ -445,8 +445,10 @@ Sustituye al arnés obsoleto de la §6 para las pruebas que se pueden medir sin 
 
 ```bash
 bash scripts/eval.sh smoke                      # críticos (TEST-00, 02b, 07, 13), 3 corridas, sin línea base
-bash scripts/eval.sh regression                 # todos; 3 corridas en los críticos y 1 en el resto, con línea base (Δ)
-bash scripts/eval.sh all --runs 1 --max-cost-usd 10
+bash scripts/eval.sh regression                 # casos de regresión, 3 corridas cada uno, con línea base (Δ)
+bash scripts/eval.sh capability                 # casos cap-* (capacidades, no regresiones), 3 corridas, con línea base
+bash scripts/eval.sh all --max-cost-usd 15      # regresión + capacidad
+bash scripts/eval.sh all --runs 1 --max-cost-usd 10   # humo rápido (1 corrida)
 ```
 
 - **Requisitos:** Claude Code ≥ 2.1.269, git ≥ 2.31, `python3` y, para el sandbox de Bash, `bubblewrap` y `socat` (Linux/WSL2; macOS no los necesita).
@@ -456,9 +458,16 @@ bash scripts/eval.sh all --runs 1 --max-cost-usd 10
   (por defecto 20; configurable con la opción o `EVAL_MAX_COST_USD`); si se alcanza, sale con código 2 y resultados parciales.
 - **Salida (no se versiona):** `tests/results/evals/<modo>-<fecha>/` con `result.json`, `report.html`, `stderr.txt` y `traces/` (transcripciones
   por caso y corrida). Guárdala o descárgala antes de cerrar la sesión.
+- **Etiquetas (E3b):** `regression` (TEST-*, c1, c3), `capability` (`cap-*`: miden qué sabe hacer el agente, p. ej. inyección en código, borrado
+  indirecto, validación con alternativas, delegación) y `observational` (`cap-stop-docs`, sin umbral). `runs: 3` en todos los casos. Los
+  indicadores `diag-*`/`obs-*` (`arm: with-only`) no puntúan: se leen en el informe.
 - **Cómo leerla:** `WITH` = puntuación con el plugin, `W/OUT` = sin plugin, `Δ` = lo que aporta el agente. **Δ ≤ 0** significa que el modelo
   solo ya cumple (o que el grader no discrimina): el caso no demuestra valor del agente. Un FAIL se investiga leyendo la transcripción; los
-  graders son regex, así que un sinónimo no previsto puede ser un falso FAIL.
+  graders son regex o `llm`, así que un sinónimo no previsto puede ser un falso FAIL y un `llm` puede variar entre corridas (3 votos).
+  En E3b los regex permisivos (`\?`, palabras sueltas) se sustituyeron por rúbricas `llm` PASS/FAIL (tabla de cambios en `evals/README.md`).
+- **Diagnóstico de TEST-08 (etiquetas):** `test-08b-alcance-autorizado` repite el fixture con el prompt «…si hace falta, actualiza también `main.py`» para
+  que la tarea termine, y los indicadores `diag-skill-scope-invocada` (¿se invocó la Skill de alcance?) y `diag-tarea-terminada` (¿editó `app/calc.py` o
+  se detuvo a preguntar?) de TEST-08 separan TOOLING de PROMPT/MECANISMO/MODELO según el árbol de la §8.
 - **Qué no cubre:** las pruebas MANUAL (05, 10, 11), lo multi-turno (3 turnos de 02, autorización de 08) y 02b «usa el contenido de CLAUDE.md»
   (el `CLAUDE.md` del workspace no se carga en una evaluación). La puerta hacia 1.0.0 sigue siendo el flujo manual de dos comandos (§4).
 

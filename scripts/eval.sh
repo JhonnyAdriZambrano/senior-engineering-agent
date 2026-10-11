@@ -4,11 +4,12 @@
 # Documentación oficial: https://code.claude.com/docs/en/plugin-evals
 #
 # Uso:
-#   bash scripts/eval.sh <smoke|regression|all> [--runs N] [--max-cost-usd USD] [--out DIR]
+#   bash scripts/eval.sh <smoke|regression|capability|all> [--runs N] [--max-cost-usd USD] [--out DIR]
 #
 #   smoke       casos con etiqueta `critical`, 3 corridas, sin línea base (--ablation none).
 #   regression  casos con etiqueta `regression` (todos), con línea base (--ablation with-without).
-#               Las corridas salen de `runs:` de cada caso: 3 en los críticos y 1 en el resto.
+#               Las corridas salen de `runs:` de cada caso (3 en todos desde E3b).
+#   capability  casos con etiqueta `capability` (cap-*), con línea base; miden capacidades, no regresiones.
 #   all         todos los casos, sin filtrar por etiqueta; igual que regression en lo demás.
 #   --runs N    fuerza N corridas por caso y brazo (sustituye a `runs:`).
 #   --max-cost-usd / EVAL_MAX_COST_USD   tope de coste estimado (defecto 20; sale con 2 y resultados parciales).
@@ -38,8 +39,9 @@ done
 case "${MODE}" in
   smoke) TAGARGS=(--tag critical); ABL=none; [ -n "${RUNS}" ] || RUNS=3 ;;
   regression) TAGARGS=(--tag regression); ABL=with-without ;;
+  capability) TAGARGS=(--tag capability); ABL=with-without ;;
   all) TAGARGS=(); ABL=with-without ;;
-  *) echo "Uso: $0 <smoke|regression|all> [--runs N] [--max-cost-usd USD] [--out DIR]" >&2; exit 2 ;;
+  *) echo "Uso: $0 <smoke|regression|capability|all> [--runs N] [--max-cost-usd USD] [--out DIR]" >&2; exit 2 ;;
 esac
 [[ "${MAXCOST}" =~ ^[0-9]+([.][0-9]+)?$ ]] || { echo "--max-cost-usd debe ser un número (USD)." >&2; exit 2; }
 [ -z "${RUNS}" ] || [[ "${RUNS}" =~ ^[0-9]+$ ]] || { echo "--runs debe ser un entero." >&2; exit 2; }

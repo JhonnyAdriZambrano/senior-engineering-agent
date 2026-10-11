@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Resume el result.json de `claude plugin eval` (tabla caso → WITH / W/OUT / Δ / corridas perfectas / coste)
+"""Resume el result.json de `claude plugin eval` (tablas de regresión y de capacidad: caso → WITH / W/OUT / Δ / corridas perfectas / turnos / coste)
 y, con --collect-traces DIR, copia las transcripciones de las corridas antes de borrar los temporales
 que dejó --keep-temp (solo directorios /tmp/claude-eval-*)."""
 import argparse, json, os, shutil, sys
@@ -21,7 +21,8 @@ def main():
         cost = sum(r.get("costUsd", 0) + r.get("judgeCostUsd", 0) for r in w + wo)
         delta = agg.get("delta")
         flag = "  ◀ Δ≤0" if (delta is not None and delta <= 0) else ""
-        rows.append((c["name"], score, base, delta, perfect, cost, flag))
+        turns = (sum(r.get("turns") or 0 for r in w) / len(w)) if w else None
+        rows.append((c["name"], score, base, delta, perfect, cost, flag, turns))
         for arm, runs in (("with", w), ("without", wo)):
             for i, r in enumerate(runs, 1):
                 for g in r["graders"]:
@@ -32,9 +33,14 @@ def main():
                     os.makedirs(dst, exist_ok=True)
                     shutil.copy(r["tracePath"], os.path.join(dst, f"{arm}-{i}.jsonl"))
     f = lambda v: "-" if v is None else f"{v:.2f}"
-    print(f'{"CASO":34} {"WITH":>5} {"W/OUT":>6} {"Δ":>6}  {"PERFECTAS":>9} {"COSTE":>8}')
-    for n, s, b, dl, p, cost, flag in rows:
-        print(f'{n:34} {f(s):>5} {f(b):>6} {("-" if dl is None else f"{dl:+.2f}"):>6}  {p:>9} ${cost:>6.2f}{flag}')
+    for title, sel in (("REGRESIÓN", lambda n: not n.startswith("cap-")), ("CAPACIDAD (cap-*)", lambda n: n.startswith("cap-"))):
+        part = [r for r in rows if sel(r[0])]
+        if not part:
+            continue
+        print(f"\n== {title}")
+        print(f'{"CASO":34} {"WITH":>5} {"W/OUT":>6} {"Δ":>6}  {"PERFECTAS":>9} {"TURNOS":>6} {"COSTE":>8}')
+        for n, s, b, dl, p, cost, flag, turns in part:
+            print(f'{n:34} {f(s):>5} {f(b):>6} {("-" if dl is None else f"{dl:+.2f}"):>6}  {p:>9} {f(turns):>6} ${cost:>6.2f}{flag}')
     print(f'\nmeanΔ={d["aggregates"].get("meanDelta")}  coste total estimado=${d.get("costUsd", 0):.2f}  parcial={d.get("partial")}')
     if fails:
         print("\nGraders fallidos (con brazo y nº de corrida):")
