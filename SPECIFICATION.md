@@ -168,7 +168,7 @@ repositorio — no se incluyen en el ZIP que un runtime consume.
 | Capacidades (herramientas) | CAPACIDAD + CONFIG | El principio sí; el binding no | `capabilities.yaml` |
 | Identidad/versión del manifiesto | CONFIG | Portable como declaración; el efecto visible en UI no | `manifest.yaml` |
 | Skills (vista generada de `modules/`) | ADAPTADOR (derivado) | Sí entre Claude Code, Codex, Cursor y Gemini CLI (formato SKILL.md común; cambia solo la carpeta de instalación) | `adapters/skills/` |
-| Hooks deterministas (inicio de sesión: conocimiento del proyecto e instrucciones incrustadas; antes de comandos de shell: NN-08) | ADAPTADOR (enforcement) | Parcial — lógica común para Claude Code, Codex, Cursor y Gemini CLI; ChatGPT Projects y Gemini Gems no tienen hooks | `adapters/hooks/sea_hooks.py` + `settings.hooks.json`/`hooks.json` de cada adaptador |
+| Hooks deterministas (inicio de sesión: conocimiento del proyecto e instrucciones incrustadas; antes de comandos de shell: NN-08; en Claude Code, herramientas `Bash` y `PowerShell`) | ADAPTADOR (enforcement) | Parcial — lógica común para Claude Code, Codex, Cursor y Gemini CLI; ChatGPT Projects y Gemini Gems no tienen hooks | `adapters/hooks/sea_hooks.py` + `settings.hooks.json`/`hooks.json` de cada adaptador |
 | Subagents de solo lectura (revisor, investigación de bootstrap; explorador solo en Codex, sin medir) | ADAPTADOR (complemento) | No — depende de que el runtime soporte subagentes con contexto propio | `adapters/claude-code/agents/`, `adapters/codex/agents/` |
 | Contrato para construir un adaptador nuevo | DOCUMENTACIÓN | Sí, es agnóstico de cualquier runtime concreto | `docs/ADDING_A_RUNTIME.md` |
 | Validación estructural | HERRAMIENTA DE DESARROLLO (no se distribuye) | Sí — no depende de ningún runtime, corre en cualquier máquina con Python | `tests/test_agent.py` |
@@ -336,7 +336,7 @@ esa plataforma, que este manifiesto no puede anular.
 | Herramienta nativa de pregunta estructurada | Sí (`AskUserQuestion`) | No documentada | No confirmada | No documentada | No (conversacional) | No (conversacional) |
 | Acceso a terminal/filesystem real | Sí | Sí | Sí | Sí | No | No |
 | Memoria automática sin archivo | Sí (*Auto Memory*, coexiste sin conflicto — ver adaptador) | No documentada | No | Parcial (`/memory add`, con fallos reportados) | Sí (memoria de proyecto, coexiste sin conflicto — ver adaptador) | No |
-| Hooks (inicio de sesión / antes de comandos / fin de turno) | Sí — `SessionStart` / `PreToolUse` (`ask`) / `Stop` (bloquea una vez si no hay validación) | Sí — `SessionStart` / `PreToolUse` (solo `deny`; `ask` aún no soportado) | Sí — `sessionStart` / `beforeShellExecution` (`ask`) | Sí — `SessionStart` / `BeforeTool` (`deny`) | No | No |
+| Hooks (inicio de sesión / antes de comandos / fin de turno) | Sí — `SessionStart` / `PreToolUse` (`ask`; `Bash` y `PowerShell`) / `Stop` (bloquea una vez si no hay validación) | Sí — `SessionStart` / `PreToolUse` (solo `deny`; `ask` aún no soportado) | Sí — `sessionStart` / `beforeShellExecution` (`ask`) | Sí — `SessionStart` / `BeforeTool` (`deny`) | No | No |
 | Protocolo de herramientas externas estandarizado | MCP (cliente y origen) | MCP (cliente) | MCP (cliente) | MCP (cliente) | MCP (apps SDK) | No |
 | **Estado de validación en uso real (1.1.0)** | **validado** | pendiente de validar (E4') | sin validar en uso real | sin validar en uso real | sin validar en uso real | sin validar en uso real |
 
@@ -387,8 +387,8 @@ externo que ya no existe; las mitigaciones están en el núcleo
 
 ## 9. Próximos pasos
 
-Estado (versión 1.1.0; puerta de salida hacia 1.0.0 cumplida el 2026-10-09; la
-de 1.1.0 está definida en `CHANGELOG.md`): instalación como plugin de Claude Code
+Estado (versión 1.1.1; puerta de salida hacia 1.0.0 cumplida el 2026-10-09; la
+de 1.1.0 y la de 1.1.1 están definidas en `CHANGELOG.md`): instalación como plugin de Claude Code
 (vía principal) y documentada por runtime, Skills generadas y compartidas por
 Claude Code, Codex, Cursor y Gemini CLI, Subagents de solo lectura, tests
 estructurales, script de sandbox para el benchmark, núcleo compacto

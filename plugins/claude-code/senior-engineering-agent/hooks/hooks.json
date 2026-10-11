@@ -1,5 +1,5 @@
 {
-  "description": "Senior Engineering Agent: núcleo por SessionStart (un hook por archivo de core/), conocimiento del proyecto, NN-08 en Bash y validación al terminar",
+  "description": "Senior Engineering Agent: núcleo por SessionStart (un hook por archivo de core/), conocimiento del proyecto, NN-08 en Bash y PowerShell, y validación al terminar",
   "hooks": {
     "SessionStart": [
       {
@@ -104,7 +104,7 @@
     ],
     "PreToolUse": [
       {
-        "matcher": "Bash",
+        "matcher": "Bash|PowerShell",
         "hooks": [
           {
             "type": "command",

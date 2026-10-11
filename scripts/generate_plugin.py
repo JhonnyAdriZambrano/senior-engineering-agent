@@ -137,10 +137,10 @@ def hooks_json(manifest):
     start_hooks.append({"type": "command", "command": py_command("session-start")})
     return {
         "description": "Senior Engineering Agent: núcleo por SessionStart (un hook por archivo de core/), "
-                       "conocimiento del proyecto, NN-08 en Bash y validación al terminar",
+                       "conocimiento del proyecto, NN-08 en Bash y PowerShell, y validación al terminar",
         "hooks": {
             "SessionStart": [{"matcher": m, "hooks": start_hooks} for m in SESSION_MATCHERS],
-            "PreToolUse": [{"matcher": "Bash", "hooks": [{"type": "command", "command": py_command("pre-tool")}]}],
+            "PreToolUse": [{"matcher": "Bash|PowerShell", "hooks": [{"type": "command", "command": py_command("pre-tool")}]}],
             "Stop": [{"hooks": [{"type": "command", "command": py_command("stop")}]}],
         },
     }

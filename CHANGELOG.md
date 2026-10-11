@@ -22,6 +22,33 @@ código ejecutable), MAJOR/MINOR/PATCH se interpretan así:
 cambios de comportamiento. La etiqueta `1.0.0` se asignó el 2026-10-09 al
 cumplirse la *Puerta de salida hacia 1.0.0* (más abajo).
 
+## [1.1.1] — 2026-10-11
+
+Versión PATCH: corrección de una barrera de la puerta de 1.1.0. No cambia ninguna regla NN ni `core/`/`modules/`. La etiqueta `v1.1.1` la crea el
+propietario al cumplir la *Puerta de salida hacia 1.1.1* (más abajo); este cambio no crea etiquetas.
+
+### Corregido
+
+- **H-E7a-4 — NN-08 y Stop no cubrían la herramienta PowerShell de Claude Code en Windows** (hallado en la aceptación de 1.1.0 en el PC: `git reset --hard HEAD~1`
+  ejecutado con la herramienta `PowerShell` no disparó el hook). Causa: el matcher de `PreToolUse` era `"Bash"` y `SHELL_TOOLS` en `sea_hooks.py` no incluía
+  `PowerShell`. Ahora el matcher es `"Bash|PowerShell"` (`scripts/generate_plugin.py`, `adapters/claude-code/settings.hooks.json`, plugin regenerado) y
+  `SHELL_TOOLS` incluye `PowerShell` (pre-tool y Stop). Fuente: https://code.claude.com/docs/en/tools-reference (sección PowerShell tool: el comando llega en
+  `tool_input.command`; «Match `Bash|PowerShell` in hooks that inspect shell commands»).
+- `DESTRUCTIVE`: `Remove-Item` y sus alias (`ri`, `rm`, `del`, `erase`, `rd`, `rmdir`) con `-Recurse` y `-Force` en cualquier orden y con las abreviaturas de
+  parámetros de PowerShell (`-r`/`-rec`…, `-fo`/`-forc`…). Los patrones de Bash no cambian.
+- Stop: cuentan como edición por shell `Set-Content`, `Add-Content`, `Out-File` y `Clear-Content` (sin distinguir mayúsculas; destino por `-Path`/`-FilePath`/
+  `-LiteralPath` o primer argumento posicional; `?` si no se puede determinar). Criterio y límites en el comentario de `bash_edit_targets()`. La detección de
+  validación no cambia.
+
+### Puerta de salida hacia 1.1.1
+
+La etiqueta `v1.1.1` solo se asigna cuando se cumplen TODOS estos puntos:
+
+1. Suite estructural, los tres `--check` (`generate_skills.py`, `generate_compact.py`, `generate_plugin.py`) y `claude plugin validate --strict` en verde.
+2. `scripts/eval.sh smoke` con los casos críticos en pass^3.
+3. CI en verde sobre el commit a etiquetar.
+4. Aceptación en el PC con Windows: el hook NN-08 se dispara con la herramienta PowerShell.
+
 ## [1.1.0] — 2026-10-11
 
 Versión MINOR: distribución como plugin de Claude Code, evaluación automatizada y barreras deterministas nuevas. No cambia ninguna regla NN

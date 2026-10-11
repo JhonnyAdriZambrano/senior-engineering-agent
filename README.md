@@ -173,7 +173,7 @@ proyecto).
    `.claude/settings.json` (o fusiónalo) para activar los hooks
    deterministas: aviso de conocimiento faltante al iniciar la sesión
    (`SessionStart`), confirmación obligatoria de operaciones destructivas
-   (`PreToolUse`) y exigencia de validar los cambios al terminar el turno
+   (`PreToolUse`, en Claude Code sobre `Bash` y `PowerShell`) y exigencia de validar los cambios al terminar el turno
    (`Stop`). Requiere Python 3.8+.
 6. Copia `project-knowledge-templates/*.md` a la raíz de tu proyecto
    (quitando `[Nombre del proyecto]` y rellenando), o deja que

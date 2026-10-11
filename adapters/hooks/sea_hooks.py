@@ -71,6 +71,14 @@ SUSPICIOUS = [
     (re.compile(r"\b(para cualquier tarea|antes de continuar|for (any|every) task|before (continuing|you continue))\b", re.I), "instrucción general al agente"),
 ]
 
+# Remove-Item y sus alias (ri, rm, del, erase, rd, rmdir) con -Recurse y -Force en cualquier orden. PowerShell admite
+# abreviar un parámetro mientras no sea ambiguo: -r…-Recurse (-r, -re, -rec…) y -fo…-Force (-fo, -for…; `-f` es
+# ambiguo con -Filter y no cuenta). `rm -rf` y `rm -r -f` los cubre el patrón de Bash que sigue.
+_PS_CMD = r"(?<![\w.-])(?:remove-item|ri|rm|del|erase|rd|rmdir)(?=\s)"
+_PS_R = r"(?<=\s)-r(?:e(?:c(?:u(?:r(?:se?)?)?)?)?)?(?![\w-])"
+_PS_F = r"(?<=\s)-fo(?:r(?:ce?)?)?(?![\w-])"
+_PS_REMOVE = rf"{_PS_CMD}[^\n;&|]*?{_PS_R}[^\n;&|]*?{_PS_F}|{_PS_CMD}[^\n;&|]*?{_PS_F}[^\n;&|]*?{_PS_R}"
+
 DESTRUCTIVE = [
     (r"\bgit\s+push\b[^\n;&|]*(\s--force(-with-lease|-if-includes)?\b|\s-[a-zA-Z]*f[a-zA-Z]*\b|\s\+\S+)", "push forzado"),
     (r"\bgit\s+reset\b[^\n;&|]*\s--hard\b", "git reset --hard"),
@@ -79,9 +87,9 @@ DESTRUCTIVE = [
     (r"\bgit\s+branch\b[^\n;&|]*\s(-D\b|--delete\s+--force\b|--force\s+--delete\b)", "borrado forzado de rama"),
     (r"\bgit\s+(filter-branch|filter-repo)\b", "reescritura de historial"),
     (r"\brm\s+(-[a-zA-Z]*r[a-zA-Z]*f|-[a-zA-Z]*f[a-zA-Z]*r|-r\s+-f|-f\s+-r)\b", "borrado recursivo forzado"),
-    (r"\bremove-item\b[^\n;&|]*-recurse\b[^\n;&|]*-force\b|\bremove-item\b[^\n;&|]*-force\b[^\n;&|]*-recurse\b", "borrado recursivo forzado (PowerShell)"),
+    (_PS_REMOVE, "borrado recursivo forzado (PowerShell)"),
 ]
-SHELL_TOOLS = {"Bash", "Shell", "run_shell_command"}
+SHELL_TOOLS = {"Bash", "PowerShell", "Shell", "run_shell_command"}  # PowerShell: herramienta nativa de Claude Code (tool_input.command)
 
 
 # ----------------------------------------------------------------- entrada
@@ -346,13 +354,20 @@ CANNOT_VALIDATE = re.compile(
 #   · una redirección de stdout `>` / `>>` / `>|` (con o sin `1` o `&` delante) a un archivo distinto de /dev/null,
 #     /dev/stdout, /dev/stderr y /dev/tty; `cat > archivo` entra aquí. `2>archivo` y las duplicaciones `2>&1`, `>&2`
 #     no cuentan;
-#   · `tee [opciones] archivo` con un archivo distinto de /dev/null.
-# Límites conocidos (heurístico, sin analizar la shell): un `>` suelto fuera de comillas cuenta como redirección; python -c/open() y `cp`/`mv` no cuentan; un destino en /tmp cuenta.
+#   · `tee [opciones] archivo` con un archivo distinto de /dev/null;
+#   · (herramienta PowerShell) los cmdlets Set-Content, Add-Content, Out-File y Clear-Content, sin distinguir mayúsculas;
+#     destino = valor de -Path / -FilePath / -LiteralPath o, si no hay, el primer argumento posicional (se saltan los
+#     parámetros y el valor de -Value, -Encoding, -Width, -Stream, -Filter, -Include, -Exclude, -InputObject); '?' si
+#     el destino va entre comillas, es una variable ($f) o no se puede determinar.
+# Límites conocidos (heurístico, sin analizar la shell; PowerShell: no se reconocen los alias (`sc`, `ac`, `clc`) ni abreviaturas de -Path, y un parámetro con valor no listado se tomaría como destino): un `>` suelto fuera de comillas cuenta como redirección; python -c/open() y `cp`/`mv` no cuentan; un destino en /tmp cuenta.
 _QUOTED = re.compile(r"'[^']*'|\"(?:[^\"\\]|\\.)*\"")
 _REDIRECT = re.compile(r"(?<![-=<>])(\d?|&)(>>?\|?)(?!&)[ \t]*([^\s;&|<>()]*)")
 _NO_FILE = {"/dev/null", "/dev/stdout", "/dev/stderr", "/dev/tty"}
 _INPLACE = re.compile(r"\b(sed|perl)\b[^\n;&|]*?\s(--in-place\S*|-[a-z]*i[a-z.]*)(?=\s|$)")
 _TEE = re.compile(r"\btee\b((?:[ \t]+-[a-zA-Z]+)*)[ \t]+([^\s;&|<>()]+)")
+_PS_EDIT = re.compile(r"(?<![\w-])(?:set-content|add-content|out-file|clear-content)(?=[\s;&|]|$)([^\n;&|]*)", re.I)
+_PS_PATH_PARAM = {"-path", "-filepath", "-literalpath"}
+_PS_VALUE_PARAM = {"-value", "-encoding", "-width", "-stream", "-filter", "-include", "-exclude", "-inputobject"}
 _PATH_TOKEN = re.compile(r"^[\w./~-]+\.\w+$")
 
 
@@ -371,7 +386,26 @@ def bash_edit_targets(command):
         rest = cmd[m.end():]
         files = [t for t in re.split(r"[\s;&|]+", rest.split("\n")[0]) if _PATH_TOKEN.match(t) and not t.startswith("s/")]
         out.extend(files or ["?"])
+    for m in _PS_EDIT.finditer(cmd):
+        out.append(_ps_target(m.group(1)))
     return out
+
+
+def _ps_target(args):
+    toks, i, positional = args.split(), 0, None
+    while i < len(toks):
+        t = toks[i]
+        name, _, inline = t.partition(":")
+        if name.lower() in _PS_PATH_PARAM:
+            val = inline or (toks[i + 1] if i + 1 < len(toks) else "")
+            return val if val and val != "Q" and not val.startswith(("-", "$", "(")) else "?"
+        if t.startswith("-"):
+            i += 2 if name.lower() in _PS_VALUE_PARAM and not inline else 1
+            continue
+        if positional is None:
+            positional = t
+        i += 1
+    return positional if positional and positional != "Q" and not positional.startswith(("$", "(")) else "?"
 
 
 # --- Validación por ejecución (criterio exacto): un segmento del comando (separado por ; & | o salto de línea)

@@ -144,12 +144,12 @@ Codex, Cursor y Gemini CLI) con `--runtime claude-code`:
   leerlos antes de proponer; y marca líneas con forma de instrucción
   dirigida al agente (NN-06b, detección heurística). El aviso de archivos
   faltantes se pide solo para tareas que trabajan sobre el repositorio.
-- `pre-tool` (PreToolUse, `Bash`) — ante push forzado,
+- `pre-tool` (PreToolUse, `Bash|PowerShell`: en Windows Claude Code usa la herramienta `PowerShell`, con el comando en `tool_input.command`) — ante push forzado,
   `reset --hard`, `clean -f`, descartar todos los cambios, borrar ramas con
   `-D`, reescribir historial o borrado recursivo forzado, obliga a Claude
-  Code a pedir confirmación al usuario (NN-08).
+  Code a pedir confirmación al usuario (NN-08); en PowerShell cubre además `Remove-Item` y sus alias (`ri`, `rm`, `del`, `erase`, `rd`, `rmdir`) con `-Recurse` y `-Force` (admite abreviaturas).
 - `stop` (Stop) — si en el turno hubo `Edit`/`Write`/`MultiEdit` y no hay
-  evidencia de validación (comando de test, build o lint en `Bash`) ni una
+  evidencia de validación (comando de test, build o lint en `Bash` o `PowerShell`; cuentan como edición por shell también `Set-Content`, `Add-Content`, `Out-File` y `Clear-Content`) ni una
   declaración explícita de «no pude validar», bloquea la terminación UNA vez
   con un motivo claro; respeta `stop_hook_active` y, ante cualquier error
   (por ejemplo, transcripción ilegible), permite terminar. El formato del

@@ -835,6 +835,25 @@ check("Codex, Cursor y Gemini CLI no definen Stop (pendiente de verificar)",
       "algún runtime distinto de Claude Code define un evento Stop")
 check("sea_hooks.py cita la URL oficial de hooks en el docstring", "code.claude.com/docs/en/hooks" in read("adapters/hooks/sea_hooks.py").split('"' * 3)[1])
 
+# --- H-E7a-4: herramienta PowerShell de Claude Code (tool_input.command) ---
+def _ps(cmd):
+    return {"tool_name": "PowerShell", "tool_input": {"command": cmd}}
+
+
+for c in ("git reset --hard HEAD~1; git log --oneline", "git push --force origin main", "Remove-Item -Recurse -Force x",
+          "rm -r -fo x", "ri x -Force -Recurse", "del -rec -forc x", "Remove-Item x -Force -Recurse:$true", "rd -r -fo x"):
+    rc, d = run_pt("claude-code", _ps(c))
+    check(f"PreToolUse (PowerShell): {c!r} -> ask", rc == 0 and d == "ask", str(d))
+for c in ("Get-ChildItem", "Remove-Item x", "rm -r x", "Remove-Item -Force x", "ri x -f -r", "git status"):
+    rc, d = run_pt("claude-code", _ps(c))
+    check(f"PreToolUse (PowerShell): {c!r} -> sin salida", rc == 0 and d is None, str(d))
+rc, d = run_pt("claude-code", {"tool_name": "Read", "tool_input": {"command": "git reset --hard"}})
+check("PreToolUse: una herramienta que no es de shell se ignora", rc == 0 and d is None, str(d))
+_r = subprocess.run([sys.executable, SEA, "pre-tool", "--runtime", "claude-code"], input=_json.dumps(payload("claude-code", "rm -rf build")),
+                    capture_output=True, text=True)
+check("PreToolUse: `rm -rf` de Bash da un solo motivo (sin duplicar con el de PowerShell)",
+      "borrado recursivo forzado" in _r.stdout and "PowerShell" not in _r.stdout, _r.stdout[:200])
+
 # --- Stop (E3c): ediciones y validación por Bash, sin LLM ---
 def _bash(cmd):
     return _tu("Bash", command=cmd)
@@ -863,6 +882,32 @@ _allows("2>&1 y 2>/dev/null", "ls app 2>&1; ls nada 2>/dev/null")
 _allows("tee /dev/null", "ls | tee /dev/null")
 _allows("«>» dentro de comillas", "git log --format='%h > %s' && echo \"a > b\"")
 _allows("ls", "ls -la")
+# herramienta PowerShell (H-E7a-4)
+def _ps_stop(cmds, say="hecho"):
+    ev = [_user("x")]
+    for c in cmds:
+        ev += [_tu("PowerShell", command=c), _tr()]
+    return run_stop(ev + [_say(say)])
+
+
+for label, cmd in (("Set-Content", "Set-Content a.py 'x'"), ("Add-Content -Path", "Add-Content -Path a.py -Value 'x'"),
+                   ("Out-File -FilePath", "'x' | Out-File -FilePath a.py -Encoding utf8"), ("Clear-Content", "Clear-Content a.py"),
+                   ("minúsculas", "set-content -literalpath a.py -value x"), ("-Value antes del destino", "Set-Content -Value 'x' a.py")):
+    rc, out = _ps_stop([cmd])
+    check(f"Stop: edición por PowerShell sin validar ({label}) -> block", rc == 0 and out and out["decision"] == "block", f"{cmd!r} -> {out}")
+rc, out = _ps_stop(["Set-Content a.py 'x'", "pytest"])
+check("Stop: PowerShell Set-Content seguido de pytest -> allow", rc == 0 and out is None, str(out))
+rc, out = _ps_stop(["Set-Content a.py 'x'; pytest"])
+check("Stop: PowerShell Set-Content; pytest en el mismo comando -> allow", rc == 0 and out is None, str(out))
+rc, out = _ps_stop(["Get-ChildItem", "Get-Content a.py"])
+check("Stop: PowerShell que no edita (Get-ChildItem, Get-Content) -> allow", rc == 0 and out is None, str(out))
+import importlib.util as _ilu
+_sp = _ilu.spec_from_file_location("sea_hooks_t", os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "adapters", "hooks", "sea_hooks.py"))
+_sh = _ilu.module_from_spec(_sp)
+_sp.loader.exec_module(_sh)
+bash_edit_targets = _sh.bash_edit_targets
+check("PowerShell: destino desconocido (variable) se marca '?'", bash_edit_targets("Set-Content $f 'x'") == ["?"], "")
+check("PowerShell: destino de Set-Content a.py", bash_edit_targets("Set-Content a.py 'x'") == ["a.py"], "")
 # edición por Bash + validación explícita -> allow
 rc, out = run_stop([_user("x"), _bash("sed -i 's/a/b/' app/calc.py"), _tr(), _bash("pytest -q"), _tr(), _say("ok")])
 check("Stop: sed -i + pytest -> allow", rc == 0 and out is None, str(out))
@@ -1137,8 +1182,8 @@ check("sea_hooks.py del plugin resuelve project-knowledge-templates/ a la misma 
 # hooks.json: estructura, matchers, rutas y salida de los hooks del núcleo
 if hj is not None:
     hooks = hj.get("hooks", {})
-    check("hooks.json: eventos SessionStart, PreToolUse (Bash) y Stop", set(hooks) == {"SessionStart", "PreToolUse", "Stop"}
-          and hooks["PreToolUse"][0].get("matcher") == "Bash", str(sorted(hooks)))
+    check("hooks.json: eventos SessionStart, PreToolUse (Bash|PowerShell) y Stop", set(hooks) == {"SessionStart", "PreToolUse", "Stop"}
+          and hooks["PreToolUse"][0].get("matcher") == "Bash|PowerShell", str(sorted(hooks)))
     check("hooks.json: SessionStart con matchers startup, clear y compact",
           [g.get("matcher") for g in hooks.get("SessionStart", [])] == ["startup", "clear", "compact"], "matchers inesperados")
     all_cmds = [h["command"] for ev in hooks.values() for g in ev for h in g["hooks"]]

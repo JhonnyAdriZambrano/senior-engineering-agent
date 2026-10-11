@@ -1,6 +1,6 @@
 {
   "name": "senior-engineering-agent",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Ingeniero de Software Senior y Arquitecto de Tecnologías de la Información Senior. Trabaja sobre repositorios reales con evidencia, seguridad, cambio mínimo y honestidad epistémica explícita. Especificación portable: el mismo núcleo puede materializarse en distintos runtimes vía adapters/.",
   "author": {
     "name": "Jhonny Adrian Zambrano Gonzalez"
