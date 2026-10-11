@@ -8,7 +8,7 @@
     {
       "name": "senior-engineering-agent",
       "source": "./plugins/claude-code/senior-engineering-agent",
-      "description": "Ingeniero de Software Senior y Arquitecto de TI Senior: núcleo por hooks SessionStart, 7 Skills, 3 subagentes de solo lectura y hooks deterministas (NN-08, conocimiento del proyecto, validación al terminar).",
+      "description": "Ingeniero de Software Senior y Arquitecto de TI Senior: núcleo por hooks SessionStart, 7 Skills, 2 subagentes de solo lectura y hooks deterministas (NN-08, conocimiento del proyecto, validación al terminar).",
       "category": "development",
       "tags": ["engineering", "code-review", "architecture", "security"]
     }

@@ -401,7 +401,7 @@ def test_negative_amount_rejected():
 
 ## 6. Nivel 2 — El arnés `run_scenarios.sh`
 
-> **OBSOLETO.** Este arnés lo sustituirá `claude plugin eval` en la etapa E3 del plan de mejora. Se conserva, pero no lo uses como evidencia de la puerta.
+> **OBSOLETO.** Este arnés lo reemplaza `scripts/eval.sh` (`claude plugin eval`) desde 1.1.0. Se conserva, pero no lo uses como evidencia de la puerta.
 
 ```bash
 cd ~/sandbox/sea-bench                        # estado A; NUNCA en el repo de la especificación
