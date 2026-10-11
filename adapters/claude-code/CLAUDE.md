@@ -12,7 +12,7 @@ generada** por `python3 scripts/generate_plugin.py` (`--check` en CI y en
 `manifest.yaml`: no lo edites a mano. Contiene:
 - `.claude-plugin/plugin.json` — `name`, `version` (leída de `manifest.yaml`),
   `description`, `author`, `license`, `repository`.
-- `skills/` (las 7 de `adapters/skills/`) y `agents/` (los 3 Subagents).
+- `skills/` (las 7 de `adapters/skills/`) y `agents/` (los 2 Subagents).
 - `core/00…05` y `hooks/hooks.json`, `adapters/hooks/sea_hooks.py`,
   `project-knowledge-templates/` (misma ruta relativa: `sea_hooks.py` busca las
   plantillas tres niveles por encima de sí mismo), `scripts/sea-python.sh`,
@@ -107,16 +107,18 @@ Así Claude Code solo carga cada uno cuando su descripción coincide con la
 tarea real (progressive disclosure verificado).
 
 ## Complemento: Subagents de solo lectura
-Opcional: copia `agents/*.md` a `.claude/agents/`. Los tres son de solo
+Opcional: copia `agents/*.md` a `.claude/agents/`. Los dos son de solo
 lectura y devuelven un informe con formato fijo (incluida la sección
 «Obstáculos encontrados»); ninguno implementa, ejecuta tests ni decide:
-- `repository-explorer-agent` — explora un repositorio grande (INSPECCIONAR
-  y COMPRENDER) y propone un plan que no ejecuta.
 - `code-reviewer-agent` — revisión independiente de un cambio ya hecho
   (modo REVIEW); precarga las Skills `security` y
   `scope-regression-change-control`.
 - `project-bootstrap-research-agent` — compara opciones técnicas de un
   proyecto nuevo, con fuentes.
+El subagente explorador (`repository-explorer-agent`) se retiró de Claude Code
+en E3c (decisión D-3): no se midió un beneficio frente al modelo solo. Para
+explorar, delega con la herramienta de subagentes integrada de Claude Code o
+explora en el hilo principal.
 Por qué solo lectura: los subagents reciben el `CLAUDE.md` (y por tanto el
 núcleo) pero no pueden usar `AskUserQuestion` (code.claude.com/docs/en/sub-agents),
 y cuando cada paso depende del anterior —implementar, probar, corregir— la

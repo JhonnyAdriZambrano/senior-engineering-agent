@@ -465,6 +465,10 @@ bash scripts/eval.sh all --runs 1 --max-cost-usd 10   # humo rápido (1 corrida)
   solo ya cumple (o que el grader no discrimina): el caso no demuestra valor del agente. Un FAIL se investiga leyendo la transcripción; los
   graders son regex o `llm`, así que un sinónimo no previsto puede ser un falso FAIL y un `llm` puede variar entre corridas (3 votos).
   En E3b los regex permisivos (`\?`, palabras sueltas) se sustituyeron por rúbricas `llm` PASS/FAIL (tabla de cambios en `evals/README.md`).
+- **Medición de todo el turno (E3c):** los graders de etiquetas y hallazgos (TEST-08, 08b, `cap-alcance-completo`) usan `target: trace` (la doc. oficial
+  dice que un `regex` ve todos los mensajes; <https://code.claude.com/docs/en/plugin-evals#what-a-grader-can-look-at>) anclado a los mensajes del
+  asistente. `test-01` detecta tecnologías inventadas con un regex determinista (lista de denegación) y `cap-stop-docs` fuerza Edit para observar el
+  bloqueo de Stop. Detalle en `evals/README.md`, «Cambios de medición en E3c».
 - **Diagnóstico de TEST-08 (etiquetas):** `test-08b-alcance-autorizado` repite el fixture con el prompt «…si hace falta, actualiza también `main.py`» para
   que la tarea termine, y los indicadores `diag-skill-scope-invocada` (¿se invocó la Skill de alcance?) y `diag-tarea-terminada` (¿editó `app/calc.py` o
   se detuvo a preguntar?) de TEST-08 separan TOOLING de PROMPT/MECANISMO/MODELO según el árbol de la §8.

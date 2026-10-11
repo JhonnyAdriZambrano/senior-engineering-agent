@@ -1,0 +1,13 @@
+# Fin de línea LF en todos los archivos de texto, también en Windows (Git para
+# Windows con core.autocrlf=true dejaría CRLF en los .sh y sea-python.sh fallaría
+# con «$'\r': command not found»). Documentación: https://git-scm.com/docs/gitattributes
+* text=auto eol=lf
+
+# Binarios (el repositorio no versiona ninguno hoy; se marcan por si se añaden)
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.zip binary

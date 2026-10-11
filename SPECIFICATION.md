@@ -83,12 +83,11 @@ senior-engineering-agent/
 │   │   ├── CLAUDE.md
 │   │   ├── settings.hooks.json              (hooks para .claude/settings.json)
 │   │   └── agents/                          (Subagents de solo lectura)
-│   │       ├── repository-explorer-agent.md
 │   │       ├── code-reviewer-agent.md
 │   │       └── project-bootstrap-research-agent.md
 │   ├── codex/
 │   │   ├── AGENTS.md
-│   │   └── agents/                          (los mismos 3, en .toml, sandbox read-only)
+│   │   └── agents/                          (3 en .toml, sandbox read-only; el explorador, sin medir)
 │   ├── cursor/rules/00-core-always.mdc
 │   ├── gemini-cli/GEMINI.md
 │   └── chatgpt-and-gems/instructions.md
@@ -163,7 +162,7 @@ repositorio — no se incluyen en el ZIP que un runtime consume.
 | Identidad/versión del manifiesto | CONFIG | Portable como declaración; el efecto visible en UI no | `manifest.yaml` |
 | Skills (vista generada de `modules/`) | ADAPTADOR (derivado) | Sí entre Claude Code, Codex, Cursor y Gemini CLI (formato SKILL.md común; cambia solo la carpeta de instalación) | `adapters/skills/` |
 | Hooks deterministas (inicio de sesión: conocimiento del proyecto e instrucciones incrustadas; antes de comandos de shell: NN-08) | ADAPTADOR (enforcement) | Parcial — lógica común para Claude Code, Codex, Cursor y Gemini CLI; ChatGPT Projects y Gemini Gems no tienen hooks | `adapters/hooks/sea_hooks.py` + `settings.hooks.json`/`hooks.json` de cada adaptador |
-| Subagents de solo lectura (explorador, revisor, investigación de bootstrap) | ADAPTADOR (complemento) | No — depende de que el runtime soporte subagentes con contexto propio | `adapters/claude-code/agents/`, `adapters/codex/agents/` |
+| Subagents de solo lectura (revisor, investigación de bootstrap; explorador solo en Codex, sin medir) | ADAPTADOR (complemento) | No — depende de que el runtime soporte subagentes con contexto propio | `adapters/claude-code/agents/`, `adapters/codex/agents/` |
 | Contrato para construir un adaptador nuevo | DOCUMENTACIÓN | Sí, es agnóstico de cualquier runtime concreto | `docs/ADDING_A_RUNTIME.md` |
 | Validación estructural | HERRAMIENTA DE DESARROLLO (no se distribuye) | Sí — no depende de ningún runtime, corre en cualquier máquina con Python | `tests/test_agent.py` |
 | Empaquetado reproducible | HERRAMIENTA DE DESARROLLO (no se distribuye) | Sí | `scripts/build_zip.sh` |
@@ -216,11 +215,12 @@ Claude Code (`.claude/skills/`) y a Codex, Cursor y Gemini CLI
 (documentación oficial de cada runtime, consultadas 2026-09-26). En runtimes sin Skills
 (ChatGPT Projects, Gemini Gems), el módulo se sube como archivo adjunto.
 
-**Subagents (complemento, solo lectura).** Claude Code y Codex incluyen tres
-subagents sin permisos de escritura: `repository-explorer-agent`
-(INSPECCIONAR/COMPRENDER y propuesta de plan), `code-reviewer-agent`
-(revisión independiente, modo REVIEW) y `project-bootstrap-research-agent`
-(comparación de opciones con fuentes). Implementar, ejecutar tests y decidir
+**Subagents (complemento, solo lectura).** Claude Code incluye dos subagents
+sin permisos de escritura: `code-reviewer-agent` (revisión independiente, modo
+REVIEW) y `project-bootstrap-research-agent` (comparación de opciones con
+fuentes). Codex incluye además `repository-explorer-agent` (INSPECCIONAR/
+COMPRENDER y propuesta de plan), marcado **sin medir**; en E3c (decisión D-3) se
+retiró de Claude Code, el único runtime con evaluación automatizada. Implementar, ejecutar tests y decidir
 quedan en el hilo principal: un subagent no puede usar la interacción
 estructurada con el usuario (Claude Code, `code.claude.com/docs/en/sub-agents`),
 y en tareas donde cada paso depende del anterior la información se pierde en
@@ -325,7 +325,7 @@ esa plataforma, que este manifiesto no puede anular.
 | Resolución de `@import` relativa al archivo importador (no al cwd ni al archivo raíz) | **Confirmado** (`docs.anthropic.com/en/docs/claude-code/memory`) | No aplica (sin import) | No aplica | **Confirmado** (`geminicli.com/docs/core/memport`) | No aplica | No aplica |
 | Carga condicional real por metadatos | Sí (Skills en `.claude/skills/`; imports no) | Sí (Skills en `.agents/skills/`) | Sí (Skills en `.agents/skills/`; reglas `.mdc`) | Sí (Skills en `.agents/skills/` o `.gemini/skills/`) | No | No |
 | Comando nativo de inicialización del proyecto | Sí (`/init`) | Sí (`/init`) | No confirmado | **Sí** (`/init`, genera `GEMINI.md`; `geminicli.com/docs/reference/commands`, consultada el 2026-09-26) | No aplica | No aplica |
-| Subagents (contexto aislado, delegación) | Sí — usado en `adapters/claude-code/agents/` | Sí (GA, confirmado) — usado en `adapters/codex/agents/` | **Sí** (`.cursor/agents/`; por compatibilidad también `.claude/agents/` y `.codex/agents/`; campo `readonly`; `cursor.com/docs/subagents`, consultada el 2026-09-26) — sin adaptador propio: los de Claude Code no declaran `readonly`, así que en Cursor no quedan restringidos a solo lectura por mecanismo | **Sí** (`/agents`; locales en `.gemini/agents` y `~/.gemini/agents`; `geminicli.com/docs/reference/commands`, consultada el 2026-09-26) — sin adaptador en este repo todavía | No aplica | No aplica |
+| Subagents (contexto aislado, delegación) | Sí — usado en `adapters/claude-code/agents/` (2: revisor y bootstrap) | Sí (GA, confirmado) — usado en `adapters/codex/agents/` (3; el explorador, sin medir) | **Sí** (`.cursor/agents/`; por compatibilidad también `.claude/agents/` y `.codex/agents/`; campo `readonly`; `cursor.com/docs/subagents`, consultada el 2026-09-26) — sin adaptador propio: los de Claude Code no declaran `readonly`, así que en Cursor no quedan restringidos a solo lectura por mecanismo | **Sí** (`/agents`; locales en `.gemini/agents` y `~/.gemini/agents`; `geminicli.com/docs/reference/commands`, consultada el 2026-09-26) — sin adaptador en este repo todavía | No aplica | No aplica |
 | Herramienta nativa de pregunta estructurada | Sí (`AskUserQuestion`) | No documentada | No confirmada | No documentada | No (conversacional) | No (conversacional) |
 | Acceso a terminal/filesystem real | Sí | Sí | Sí | Sí | No | No |
 | Memoria automática sin archivo | Sí (*Auto Memory*, coexiste sin conflicto — ver adaptador) | No documentada | No | Parcial (`/memory add`, con fallos reportados) | Sí (memoria de proyecto, coexiste sin conflicto — ver adaptador) | No |

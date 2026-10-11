@@ -16,6 +16,14 @@ Projects y Gemini Gems sin reescribir el comportamiento en cada plataforma.
   (`pip install pyyaml --break-system-packages`), y las utilidades de
   sistema `zip`/`unzip`. Con Python 3.10, instala también `tomli` para no
   omitir la validación TOML.
+- **En Windows**: el plugin de Claude Code ejecuta sus hooks con **Git Bash**
+  (`scripts/sea-python.sh` es un script de bash). El repositorio incluye un
+  `.gitattributes` (`* text=auto eol=lf`) que fuerza fin de línea LF en la
+  copia de trabajo aunque `core.autocrlf=true`; sin él, los `.sh` quedarían
+  con CRLF y fallarían con «$'\r': command not found». Si ya clonaste antes de
+  que existiera, ejecuta `git add --renormalize . && git checkout -- .` (o
+  vuelve a clonar). `tests/test_agent.py` comprueba el LF y el bit de
+  ejecución de los `*.sh` en el índice de git (no en el sistema de archivos).
 
 ## Qué es y qué problema resuelve
 
@@ -53,10 +61,10 @@ senior-engineering-agent/
 ├── adapters/                    un directorio por runtime soportado
 │   ├── skills/                   7 Skills (SKILL.md) GENERADAS desde modules/,
 │   │                             compartidas por Claude Code, Codex, Cursor y Gemini CLI
-│   ├── claude-code/              CLAUDE.md + agents/ (Subagents de solo lectura)
+│   ├── claude-code/              CLAUDE.md + agents/ (2 Subagents de solo lectura)
 │   │                             + settings.hooks.json (hooks SessionStart, PreToolUse)
 │   ├── hooks/sea_hooks.py        lógica común de los hooks (Claude Code, Codex, Cursor, Gemini CLI)
-│   ├── codex/                    AGENTS.md + agents/ (Subagents de solo lectura)
+│   ├── codex/                    AGENTS.md + agents/ (3 Subagents de solo lectura; el explorador, sin medir)
 │   ├── cursor/rules/              regla alwaysApply con el núcleo compacto
 │   ├── gemini-cli/                GEMINI.md
 │   └── chatgpt-and-gems/          instrucciones comprimidas + archivos adjuntos
@@ -91,7 +99,7 @@ marketplace (`.claude-plugin/marketplace.json`). Dentro de Claude Code:
 
 (En Claude Code 2.1.275 o posterior también sirve, en un solo paso:
 `/plugin install senior-engineering-agent --marketplace JhonnyAdriZambrano/senior-engineering-agent`.)
-El plugin trae las 7 Skills, los 3 Subagents de solo lectura, el núcleo
+El plugin trae las 7 Skills, los 2 Subagents de solo lectura, el núcleo
 (inyectado al iniciar la sesión por un hook `SessionStart` por cada archivo de
 `core/`) y los hooks deterministas; no hace falta tocar `CLAUDE.md` ni copiar
 nada. Es una **vista generada** (`plugins/claude-code/senior-engineering-agent/`,
@@ -113,8 +121,8 @@ proyecto).
    proyecto (`.claude/skills/<nombre>/SKILL.md`) para que Claude Code las
    cargue solo cuando la tarea lo amerite.
 4. Opcional: copia `adapters/claude-code/agents/*.md` a `.claude/agents/`
-   para habilitar los Subagents de solo lectura (explorador, revisor e
-   investigación de bootstrap).
+   para habilitar los 2 Subagents de solo lectura (revisor e investigación
+   de bootstrap; el explorador se retiró en E3c, decisión D-3).
 5. Recomendado: copia `adapters/claude-code/settings.hooks.json` a
    `.claude/settings.json` (o fusiónalo) para activar los hooks
    deterministas: aviso de conocimiento faltante al iniciar la sesión y

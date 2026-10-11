@@ -1,4 +1,6 @@
 ---
 type: regex
-pattern: "\\[(MEJORA RECOMENDADA|HALLAZGO FUERA DE ALCANCE)\\]"
+pattern: "^\\{\"type\":\"assistant\"[^\\n]*?\"type\":\"text\",\"text\":\"(?:[^\"\\\\]|\\\\.)*?\\[(?:MEJORA RECOMENDADA|HALLAZGO FUERA DE ALCANCE)\\]"
+flags: "m"
+target: "trace"
 ---

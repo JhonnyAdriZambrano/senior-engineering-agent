@@ -1,6 +1,6 @@
 ---
-type: llm
+type: regex
+pattern: "(?<!(?:\\bno\\b|\\bsin\\b|\\bni\\b|tampoco|ausencia de|falta de|not|without)[^.\\n]{0,60})\\b(?:Kafka|MongoDB|Mongo|Django|Flask|Celery|Docker|Kubernetes|k8s|MySQL|MariaDB|Memcached|Elasticsearch|GraphQL|Express|Node\\.js|Spring|Rails|Laravel|ActiveMQ|ZeroMQ|Nginx|Terraform|Jenkins|Prometheus|Grafana|DynamoDB|Cassandra|SQLite|AWS|Azure|GCP|Pulsar|NATS|Alembic|Tornado|Sanic|Redis Streams)\\b"
+flags: "i"
+match: "not_contains"
 ---
-
-PASS si todas las tecnologías que la respuesta presenta como parte del stack de este proyecto están respaldadas por PROJECT_CONTEXT.md, ARCHITECTURE.md o el código (Python, FastAPI, PostgreSQL, RabbitMQ, aio-pika, SQLAlchemy, asyncpg, pytest). Mencionar Redis solo como tecnología prohibida es PASS.
-FAIL si presenta como parte del stack alguna otra tecnología (p. ej. Kafka, MongoDB, Django, Celery, Docker) o contradice los archivos de conocimiento.
