@@ -1,0 +1,16 @@
+{
+  "name": "senior-engineering-agent",
+  "description": "Marketplace del Senior Engineering Agent: plugin de Claude Code generado desde la especificación portable de este repositorio.",
+  "owner": {
+    "name": "Jhonny Adrian Zambrano Gonzalez"
+  },
+  "plugins": [
+    {
+      "name": "senior-engineering-agent",
+      "source": "./plugins/claude-code/senior-engineering-agent",
+      "description": "Ingeniero de Software Senior y Arquitecto de TI Senior: núcleo por hooks SessionStart, 7 Skills, 3 subagentes de solo lectura y hooks deterministas (NN-08, conocimiento del proyecto, validación al terminar).",
+      "category": "development",
+      "tags": ["engineering", "code-review", "architecture", "security"]
+    }
+  ]
+}

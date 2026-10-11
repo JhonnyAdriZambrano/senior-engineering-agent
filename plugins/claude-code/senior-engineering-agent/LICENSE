@@ -1,0 +1,144 @@
+Senior Engineering Agent — Licencia
+
+Copyright (c) 2026 Jhonny Adrian Zambrano Gonzalez
+
+Este trabajo — el contenido de este repositorio: núcleo (core/), módulos
+(modules/), adaptadores (adapters/), plantillas de conocimiento
+(project-knowledge-templates/), documentación (SPECIFICATION.md,
+README.md, docs/) y cualquier otro archivo de texto que compone esta
+especificación de agente — está licenciado bajo:
+
+    Creative Commons Atribución-NoComercial 4.0 Internacional (CC BY-NC 4.0)
+
+Texto legal completo (vinculante, prevalece sobre el resumen de abajo):
+    Inglés:  https://creativecommons.org/licenses/by-nc/4.0/legalcode
+    Español: https://creativecommons.org/licenses/by-nc/4.0/legalcode.es
+Resumen no vinculante (deed):
+    https://creativecommons.org/licenses/by-nc/4.0/
+
+--------------------------------------------------------------------------
+RESUMEN NO VINCULANTE (el texto legal completo de los enlaces de arriba
+es el que tiene efecto legal real; esto es solo una guía de lectura rápida)
+--------------------------------------------------------------------------
+
+Bajo esta licencia, cualquiera puede, sin pedir permiso:
+  - Compartir — copiar y redistribuir este material en cualquier medio o
+    formato.
+  - Adaptar — remezclar, transformar y construir a partir del material.
+
+Bajo los siguientes términos:
+  - Atribución (BY) — debes dar crédito adecuado (ver "Cómo atribuir" más
+    abajo), indicar si hiciste cambios, y enlazar a esta licencia. Puedes
+    hacerlo de cualquier forma razonable, pero no de manera que sugiera
+    que el autor original te respalda a ti o el uso que haces.
+  - No Comercial (NC) — no puedes usar este material, ni derivados de él,
+    con fines dirigidos principal o directamente a una ventaja comercial
+    o compensación monetaria.
+  - Sin restricciones adicionales — no puedes aplicar términos legales ni
+    medidas tecnológicas que restrinjan a otros hacer cualquier cosa que
+    la licencia permite.
+
+--------------------------------------------------------------------------
+ACLARACIÓN DEL AUTOR SOBRE "USO COMERCIAL" (interpretación propia, no
+sustituye asesoría legal ni el texto legal de Creative Commons)
+--------------------------------------------------------------------------
+
+Hay tres niveles de uso, no solo dos ("uso" vs. "venta"):
+
+1. USO PRIVADO — configuras y usas el agente para tu propio beneficio, sin
+   que nadie más reciba los archivos. Siempre permitido, para cualquier
+   propósito, incluido tu trabajo remunerado — usar la herramienta no es
+   lo mismo que vender la herramienta.
+
+2. COMPARTIR SIN COBRAR — le pasas el agente (o una adaptación) a otra
+   persona o equipo, sin que medie un pago por el agente en sí. Permitido,
+   con atribución (BY). Sigue sin ser "uso comercial" en sí mismo.
+
+3. VENDER O ENTREGAR EL AGENTE COMO PARTE DE UN PRODUCTO/SERVICIO PAGADO —
+   esto sí requiere licencia comercial aparte (ver más abajo), salvo que
+   quien lo haga sea el propio titular de los derechos de autor (ver
+   "Reserva de derechos del autor").
+
+Ejemplos concretos, para reducir la ambigüedad:
+
+  - Usarlo en tu trabajo diario (aunque tu empleador sea una empresa con
+    fines de lucro) para tus propias tareas → Nivel 1, no comercial.
+  - Un estudiante usándolo como apoyo para su tesis (código,
+    infraestructura, seguridad, redes, cualquier área) → Nivel 1 o 2 según
+    si publica los archivos del agente junto con su tesis; en ambos casos,
+    no comercial.
+  - Desplegar el agente dentro del repositorio de un cliente, como parte
+    de un trabajo de consultoría, para que el equipo del cliente lo siga
+    usando después → Nivel 3 en la práctica (se está distribuyendo el
+    agente a un tercero como parte de una relación comercial), aunque no
+    se venda como producto separado. Requiere licencia comercial aparte.
+  - Integrar este agente en un producto propio del autor original que se
+    venda a futuro (por ejemplo, una tesis convertida en producto, u otra
+    solución comercial) → permitido sin restricción, porque lo hace el
+    propio titular de los derechos (ver "Reserva de derechos del autor").
+
+Para efectos de esta licencia, el autor considera además uso comercial:
+  - Integrar este agente (o una adaptación derivada) en un producto,
+    servicio o plantilla que se venda, se ofrezca por suscripción, o se
+    use como parte de una oferta comercial a terceros.
+  - Redistribuir este material, sin cambios sustanciales, como parte de
+    un curso, plantilla o producto de pago.
+
+El autor NO considera uso comercial:
+  - Uso personal, educativo, o en proyectos propios sin fines de lucro.
+  - Uso dentro de un entorno de trabajo para tareas internas, siempre que
+    no se redistribuya el agente en sí como parte de un producto vendido.
+
+Esta aclaración reduce la ambigüedad para quien actúe de buena fe; no
+reemplaza el texto legal completo, que es el que aplica en caso de
+disputa.
+
+--------------------------------------------------------------------------
+LICENCIAMIENTO COMERCIAL
+--------------------------------------------------------------------------
+
+¿Quieres usar este agente, o una adaptación, con fines comerciales? Se
+puede acordar una licencia comercial por separado. Contacto:
+abre un Issue en el repositorio de GitHub de este proyecto (no se publica un correo directo por defecto, para evitar exposición innecesaria; el propietario puede añadir uno aquí si lo prefiere).
+
+--------------------------------------------------------------------------
+RESERVA DE DERECHOS DEL AUTOR
+--------------------------------------------------------------------------
+
+La licencia CC BY-NC 4.0 de arriba es una concesión de derechos hacia
+terceros — no limita al propio titular de los derechos de autor. En
+consecuencia, y sin necesidad de excepción adicional:
+
+  - El autor (Jhonny Adrian Zambrano Gonzalez) conserva el derecho de usar,
+    modificar, integrar y comercializar este material libremente, incluido
+    incorporarlo en trabajos académicos, tesis, productos o servicios
+    propios que se vendan u ofrezcan con fines de lucro.
+  - El autor puede otorgar licencias distintas (incluidas licencias
+    comerciales) a terceros específicos, de forma independiente a esta
+    licencia pública.
+  - Publicar una versión de este material bajo CC BY-NC 4.0 no impide que
+    versiones futuras se publiquen bajo términos distintos; sin embargo,
+    una copia ya recibida por un tercero bajo esta licencia conserva esos
+    derechos de forma irrevocable para esa versión específica (así lo
+    establece el texto legal de Creative Commons).
+
+Nota sobre contribuciones externas: si en el futuro este repositorio
+acepta contribuciones de terceros (pull requests, parches), el autor
+recomienda definir explícitamente en ese momento si dichas contribuciones
+se ceden bajo los mismos términos que permiten al autor seguir
+comercializando el conjunto — de lo contrario, la parte aportada por un
+tercero conservaría derechos de autor independientes que requerirían su
+permiso para uso comercial del conjunto.
+
+--------------------------------------------------------------------------
+CÓMO ATRIBUIR
+--------------------------------------------------------------------------
+
+Al compartir o adaptar este trabajo, incluye una atribución similar a:
+
+    "Senior Engineering Agent" por Jhonny Adrian Zambrano Gonzalez, usado/
+    adaptado bajo licencia CC BY-NC 4.0
+    (https://creativecommons.org/licenses/by-nc/4.0/).
+    Original: https://github.com/JhonnyAdriZambrano/senior-engineering-agent
+
+Si hiciste cambios respecto al original, indícalo explícitamente.

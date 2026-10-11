@@ -60,6 +60,8 @@ senior-engineering-agent/
 │   ├── cursor/rules/              regla alwaysApply con el núcleo compacto
 │   ├── gemini-cli/                GEMINI.md
 │   └── chatgpt-and-gems/          instrucciones comprimidas + archivos adjuntos
+├── plugins/claude-code/senior-engineering-agent/  plugin de Claude Code GENERADO (+ evals/ propios)
+├── .claude-plugin/marketplace.json  el repo es el marketplace del plugin
 ├── project-knowledge-templates/ plantillas que copias a TU proyecto real
 ├── docs/
 │   └── ADDING_A_RUNTIME.md      contrato para construir un adaptador nuevo
@@ -71,12 +73,37 @@ senior-engineering-agent/
     ├── build_zip.sh              empaquetado determinista (dist | repo)
     ├── generate_skills.py        modules/ -> adapters/skills/ (--check solo comprueba)
     ├── generate_compact.py       core/compact.md -> adaptadores sin @import
+    ├── generate_plugin.py        core/, adapters/ y manifest.yaml -> plugin de Claude Code (--check solo comprueba)
     └── new_result.sh             crea el registro prellenado de una corrida del benchmark
 ```
 
 ## Instalación y uso
 
 ### Con Claude Code
+
+**Opción recomendada: instalación como plugin.** El propio repositorio es el
+marketplace (`.claude-plugin/marketplace.json`). Dentro de Claude Code:
+
+```
+/plugin marketplace add JhonnyAdriZambrano/senior-engineering-agent
+/plugin install senior-engineering-agent@senior-engineering-agent
+```
+
+(En Claude Code 2.1.275 o posterior también sirve, en un solo paso:
+`/plugin install senior-engineering-agent --marketplace JhonnyAdriZambrano/senior-engineering-agent`.)
+El plugin trae las 7 Skills, los 3 Subagents de solo lectura, el núcleo
+(inyectado al iniciar la sesión por un hook `SessionStart` por cada archivo de
+`core/`) y los hooks deterministas; no hace falta tocar `CLAUDE.md` ni copiar
+nada. Es una **vista generada** (`plugins/claude-code/senior-engineering-agent/`,
+`python3 scripts/generate_plugin.py`), no una segunda fuente de verdad. Los
+hooks de Python usan un lanzador que prueba `python3`, `python` y `py -3`.
+En Windows se recomienda Git Bash para los hooks. Los hooks de un mismo evento
+corren en paralelo y la documentación no garantiza su orden: cada parte del
+núcleo lleva la cabecera «[Núcleo SEA — parte X de 6 (orden canónico 00→05)]».
+Detalle y límites: `adapters/claude-code/CLAUDE.md`.
+
+**Alternativa: copia manual** (sin plugin; no combines ambas en el mismo
+proyecto).
 
 1. Copia la carpeta **completa** `senior-engineering-agent/` a la raíz de
    tu repositorio.
@@ -208,12 +235,18 @@ ZIP coincide con el contenido preparado y que no hay secretos. Ver
 3. Si editaste algo en `core/`, actualiza el bloque de `core/compact.md` y
    corre `python3 scripts/generate_compact.py` (propaga el resumen a Codex,
    Cursor y ChatGPT/Gems; `--check` solo comprueba).
-4. Corre `python3 tests/test_agent.py` y confirma que sigue en verde
+4. Si cambiaste `core/`, `adapters/skills/`, `adapters/claude-code/agents/`,
+   `adapters/hooks/` o la versión de `manifest.yaml`, corre
+   `python3 scripts/generate_plugin.py` para regenerar el plugin
+   (`--check` solo comprueba). Los usuarios del plugin reciben la nueva versión
+   cuando cambia `agent.version`: `plugin.json` la fija.
+5. Corre `python3 tests/test_agent.py` y confirma que sigue en verde
    (incluye una verificación explícita de que las Skills no se
    desincronizaron de su módulo fuente).
-5. Actualiza `manifest.yaml > agent.version` según la política de
-   `CHANGELOG.md` (MAJOR/MINOR/PATCH) y documenta el cambio ahí.
-6. Regenera los ZIP con `scripts/build_zip.sh` (`dist` y `repo`).
+6. Actualiza `manifest.yaml > agent.version` según la política de
+   `CHANGELOG.md` (MAJOR/MINOR/PATCH) y documenta el cambio ahí; después
+   vuelve a correr `python3 scripts/generate_plugin.py` (`plugin.json` lee la versión).
+7. Regenera los ZIP con `scripts/build_zip.sh` (`dist` y `repo`).
 
 ## Git y control de versiones
 

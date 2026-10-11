@@ -24,10 +24,33 @@ cumplirse la *Puerta de salida hacia 1.0.0* (más abajo).
 
 ## [Sin publicar]
 
-Etapa E1 (remediación) del plan de mejora posterior a 1.0.0. No cambia la
-versión de `manifest.yaml` ni `core/`.
+Etapas E1 (remediación) y E2 (plugin de Claude Code) del plan de mejora
+posterior a 1.0.0. No cambian la versión de `manifest.yaml` ni `core/`.
 
-### Añadido
+### Añadido (E2: plugin de Claude Code generado)
+- **Plugin** `plugins/claude-code/senior-engineering-agent/`, vista GENERADA por
+  `scripts/generate_plugin.py` (con `--check`, en CI y en `tests/test_agent.py`
+  sección 18): `plugin.json` (versión leída de `manifest.yaml`), las 7 Skills,
+  los 3 Subagents, `core/00…05`, `sea_hooks.py` con sus plantillas en la misma
+  ruta relativa y `LICENSE`.
+- **Núcleo por hooks `SessionStart`** (`startup`, `clear`, `compact`): un hook por
+  archivo de `core/`, cada salida con la cabecera `[Núcleo SEA — parte X de 6
+  (orden canónico 00→05): <archivo>]` y por debajo del tope de 10.000 caracteres
+  de los hooks (validado en tests). Los hooks corren en paralelo y su orden no
+  está garantizado (documentado en `SPECIFICATION.md §7`).
+- **Lanzador de Python** `scripts/sea-python.sh`: prueba `python3`, `python` y
+  `py -3` (comprobando que ejecutan) y siempre sale con 0; si ninguno funciona,
+  avisa.
+- **`.claude-plugin/marketplace.json`**: el repositorio es su propio marketplace
+  (`/plugin marketplace add JhonnyAdriZambrano/senior-engineering-agent`). Una
+  ruta relativa no admite fijar una etiqueta; hacerlo exigiría una fuente
+  `git-subdir` con `ref`/`sha`. No se crean etiquetas.
+- **Casos `claude plugin eval`** (`evals/c1-rol-exacto`, `evals/c3-titulos-nucleo`);
+  los resultados no se versionan (`.gitignore`).
+- README, `adapters/claude-code/CLAUDE.md` y `SPECIFICATION.md §2/§7`:
+  instalación por plugin; la copia manual queda como alternativa.
+
+### Añadido (E1)
 - **Hook `Stop` para Claude Code** (`adapters/hooks/sea_hooks.py stop`,
   `adapters/claude-code/settings.hooks.json`): si en el turno hubo
   `Edit`/`Write`/`MultiEdit` sin evidencia de validación (test, build o lint

@@ -93,6 +93,16 @@ senior-engineering-agent/
 │   ├── gemini-cli/GEMINI.md
 │   └── chatgpt-and-gems/instructions.md
 │
+├── .claude-plugin/marketplace.json   el repo es el marketplace del plugin de Claude Code
+├── plugins/claude-code/senior-engineering-agent/   VISTA GENERADA (scripts/generate_plugin.py):
+│   ├── .claude-plugin/plugin.json    versión leída de manifest.yaml
+│   ├── skills/ agents/ core/         copias de adapters/skills/, adapters/claude-code/agents/, core/00-05
+│   ├── hooks/hooks.json              un hook SessionStart por archivo de core/ + sea_hooks.py
+│   ├── adapters/hooks/sea_hooks.py   misma ruta relativa que en la fuente (busca las plantillas
+│   │                                 tres niveles por encima) y project-knowledge-templates/
+│   ├── scripts/sea-python.sh         lanzador de Python (python3 | python | py -3)
+│   └── evals/                        casos de `claude plugin eval` (escritos a mano, versionados)
+│
 ├── project-knowledge-templates/      vive en cada repo real, NO es del agente
 │   ├── PROJECT_CONTEXT.md
 │   ├── ARCHITECTURE.md
@@ -116,6 +126,7 @@ senior-engineering-agent/
     ├── build_zip.sh                    empaquetado determinista (dist | repo)
     ├── generate_skills.py              modules/ -> SKILL.md (Claude Code y Codex)
     ├── generate_compact.py             core/compact.md -> adaptadores sin @import
+    ├── generate_plugin.py              core/, adapters/, manifest.yaml -> plugin de Claude Code
     └── new_result.sh                   registro prellenado de una corrida del benchmark
 ```
 
@@ -320,6 +331,17 @@ esa plataforma, que este manifiesto no puede anular.
 | Memoria automática sin archivo | Sí (*Auto Memory*, coexiste sin conflicto — ver adaptador) | No documentada | No | Parcial (`/memory add`, con fallos reportados) | Sí (memoria de proyecto, coexiste sin conflicto — ver adaptador) | No |
 | Hooks (inicio de sesión / antes de comandos) | Sí — `SessionStart` / `PreToolUse` (`ask`) | Sí — `SessionStart` / `PreToolUse` (solo `deny`; `ask` aún no soportado) | Sí — `sessionStart` / `beforeShellExecution` (`ask`) | Sí — `SessionStart` / `BeforeTool` (`deny`) | No | No |
 | Protocolo de herramientas externas estandarizado | MCP (cliente y origen) | MCP (cliente) | MCP (cliente) | MCP (cliente) | MCP (apps SDK) | No |
+
+**Plugin de Claude Code (vista generada).** Distribuye el núcleo con un hook
+`SessionStart` por archivo de `core/` (matchers `startup`, `clear`, `compact`),
+porque la salida de un hook se limita a 10.000 caracteres
+(`code.claude.com/docs/en/hooks`). Todos los hooks que coinciden con un evento
+corren en paralelo y la documentación no garantiza su orden: el orden de
+llegada de las seis partes del núcleo (y del aviso de `session-start`) **no está
+garantizado**. Cada parte lleva la cabecera `[Núcleo SEA — parte X de 6 (orden
+canónico 00→05): <archivo>]` para que el modelo la reconstruya en el orden
+canónico. A diferencia de `@import`, no hay un solo bloque contiguo. La fuente
+única sigue siendo `core/`, `modules/`, `adapters/` y `manifest.yaml`.
 
 ---
 

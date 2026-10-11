@@ -55,3 +55,6 @@ __pycache__/
 # --- Conocimiento real de un proyecto de prueba (si alguna vez se prueba
 #     este repo "dogfooding" contra sí mismo, no versionar esos datos aquí) ---
 /sandbox/
+
+# --- Resultados de `claude plugin eval` (se descargan, no se versionan) ---
+plugins/**/evals/results/

@@ -1,0 +1,127 @@
+{
+  "description": "Senior Engineering Agent: núcleo por SessionStart (un hook por archivo de core/), conocimiento del proyecto, NN-08 en Bash y validación al terminar",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "printf '%s\\n' '[Núcleo SEA — parte 1 de 6 (orden canónico 00→05): core/00-identity.md]' && cat \"${CLAUDE_PLUGIN_ROOT}\"/core/00-identity.md"
+          },
+          {
+            "type": "command",
+            "command": "printf '%s\\n' '[Núcleo SEA — parte 2 de 6 (orden canónico 00→05): core/01-non-negotiable-rules.md]' && cat \"${CLAUDE_PLUGIN_ROOT}\"/core/01-non-negotiable-rules.md"
+          },
+          {
+            "type": "command",
+            "command": "printf '%s\\n' '[Núcleo SEA — parte 3 de 6 (orden canónico 00→05): core/02-certainty-classification.md]' && cat \"${CLAUDE_PLUGIN_ROOT}\"/core/02-certainty-classification.md"
+          },
+          {
+            "type": "command",
+            "command": "printf '%s\\n' '[Núcleo SEA — parte 4 de 6 (orden canónico 00→05): core/03-task-classification.md]' && cat \"${CLAUDE_PLUGIN_ROOT}\"/core/03-task-classification.md"
+          },
+          {
+            "type": "command",
+            "command": "printf '%s\\n' '[Núcleo SEA — parte 5 de 6 (orden canónico 00→05): core/04-user-interaction.md]' && cat \"${CLAUDE_PLUGIN_ROOT}\"/core/04-user-interaction.md"
+          },
+          {
+            "type": "command",
+            "command": "printf '%s\\n' '[Núcleo SEA — parte 6 de 6 (orden canónico 00→05): core/05-final-priorities.md]' && cat \"${CLAUDE_PLUGIN_ROOT}\"/core/05-final-priorities.md"
+          },
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/scripts/sea-python.sh \"${CLAUDE_PLUGIN_ROOT}\"/adapters/hooks/sea_hooks.py session-start --runtime claude-code"
+          }
+        ]
+      },
+      {
+        "matcher": "clear",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "printf '%s\\n' '[Núcleo SEA — parte 1 de 6 (orden canónico 00→05): core/00-identity.md]' && cat \"${CLAUDE_PLUGIN_ROOT}\"/core/00-identity.md"
+          },
+          {
+            "type": "command",
+            "command": "printf '%s\\n' '[Núcleo SEA — parte 2 de 6 (orden canónico 00→05): core/01-non-negotiable-rules.md]' && cat \"${CLAUDE_PLUGIN_ROOT}\"/core/01-non-negotiable-rules.md"
+          },
+          {
+            "type": "command",
+            "command": "printf '%s\\n' '[Núcleo SEA — parte 3 de 6 (orden canónico 00→05): core/02-certainty-classification.md]' && cat \"${CLAUDE_PLUGIN_ROOT}\"/core/02-certainty-classification.md"
+          },
+          {
+            "type": "command",
+            "command": "printf '%s\\n' '[Núcleo SEA — parte 4 de 6 (orden canónico 00→05): core/03-task-classification.md]' && cat \"${CLAUDE_PLUGIN_ROOT}\"/core/03-task-classification.md"
+          },
+          {
+            "type": "command",
+            "command": "printf '%s\\n' '[Núcleo SEA — parte 5 de 6 (orden canónico 00→05): core/04-user-interaction.md]' && cat \"${CLAUDE_PLUGIN_ROOT}\"/core/04-user-interaction.md"
+          },
+          {
+            "type": "command",
+            "command": "printf '%s\\n' '[Núcleo SEA — parte 6 de 6 (orden canónico 00→05): core/05-final-priorities.md]' && cat \"${CLAUDE_PLUGIN_ROOT}\"/core/05-final-priorities.md"
+          },
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/scripts/sea-python.sh \"${CLAUDE_PLUGIN_ROOT}\"/adapters/hooks/sea_hooks.py session-start --runtime claude-code"
+          }
+        ]
+      },
+      {
+        "matcher": "compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "printf '%s\\n' '[Núcleo SEA — parte 1 de 6 (orden canónico 00→05): core/00-identity.md]' && cat \"${CLAUDE_PLUGIN_ROOT}\"/core/00-identity.md"
+          },
+          {
+            "type": "command",
+            "command": "printf '%s\\n' '[Núcleo SEA — parte 2 de 6 (orden canónico 00→05): core/01-non-negotiable-rules.md]' && cat \"${CLAUDE_PLUGIN_ROOT}\"/core/01-non-negotiable-rules.md"
+          },
+          {
+            "type": "command",
+            "command": "printf '%s\\n' '[Núcleo SEA — parte 3 de 6 (orden canónico 00→05): core/02-certainty-classification.md]' && cat \"${CLAUDE_PLUGIN_ROOT}\"/core/02-certainty-classification.md"
+          },
+          {
+            "type": "command",
+            "command": "printf '%s\\n' '[Núcleo SEA — parte 4 de 6 (orden canónico 00→05): core/03-task-classification.md]' && cat \"${CLAUDE_PLUGIN_ROOT}\"/core/03-task-classification.md"
+          },
+          {
+            "type": "command",
+            "command": "printf '%s\\n' '[Núcleo SEA — parte 5 de 6 (orden canónico 00→05): core/04-user-interaction.md]' && cat \"${CLAUDE_PLUGIN_ROOT}\"/core/04-user-interaction.md"
+          },
+          {
+            "type": "command",
+            "command": "printf '%s\\n' '[Núcleo SEA — parte 6 de 6 (orden canónico 00→05): core/05-final-priorities.md]' && cat \"${CLAUDE_PLUGIN_ROOT}\"/core/05-final-priorities.md"
+          },
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/scripts/sea-python.sh \"${CLAUDE_PLUGIN_ROOT}\"/adapters/hooks/sea_hooks.py session-start --runtime claude-code"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/scripts/sea-python.sh \"${CLAUDE_PLUGIN_ROOT}\"/adapters/hooks/sea_hooks.py pre-tool --runtime claude-code"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/scripts/sea-python.sh \"${CLAUDE_PLUGIN_ROOT}\"/adapters/hooks/sea_hooks.py stop --runtime claude-code"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,6 +1,56 @@
 # Senior Engineering Agent — Adaptador Claude Code
 
-## Instalación (dónde colocar esta carpeta)
+## Instalación como plugin (recomendada)
+```
+/plugin marketplace add JhonnyAdriZambrano/senior-engineering-agent
+/plugin install senior-engineering-agent@senior-engineering-agent
+```
+El repositorio es el marketplace (`.claude-plugin/marketplace.json`) y el plugin
+vive en `plugins/claude-code/senior-engineering-agent/`. **Es una vista
+generada** por `python3 scripts/generate_plugin.py` (`--check` en CI y en
+`tests/test_agent.py`, sección 18) a partir de `core/`, `adapters/` y
+`manifest.yaml`: no lo edites a mano. Contiene:
+- `.claude-plugin/plugin.json` — `name`, `version` (leída de `manifest.yaml`),
+  `description`, `author`, `license`, `repository`.
+- `skills/` (las 7 de `adapters/skills/`) y `agents/` (los 3 Subagents).
+- `core/00…05` y `hooks/hooks.json`, `adapters/hooks/sea_hooks.py`,
+  `project-knowledge-templates/` (misma ruta relativa: `sea_hooks.py` busca las
+  plantillas tres niveles por encima de sí mismo), `scripts/sea-python.sh`,
+  `LICENSE` y `evals/` (casos de `claude plugin eval`, escritos a mano).
+
+**El núcleo se inyecta con un hook `SessionStart` por archivo de `core/`**
+(matchers `startup`, `clear` y `compact`): cada uno hace `cat` del archivo,
+precedido de la línea `[Núcleo SEA — parte X de 6 (orden canónico 00→05): core/…]`.
+Se reparte en seis hooks porque la salida de un hook (stdout o
+`additionalContext`) se limita a 10.000 caracteres; el mayor archivo del núcleo
+mide menos de 5.000 y `tests/test_agent.py` lo valida
+(code.claude.com/docs/en/hooks). **Orden no garantizado:** la documentación
+indica que todos los hooks que coinciden corren en paralelo y no promete orden
+de entrega; por eso cada parte lleva su cabecera, y el orden canónico es 00→05
+aunque lleguen mezcladas.
+
+**Intérprete de Python.** Los hooks de `sea_hooks.py` (`session-start`,
+`pre-tool`, `stop`) se llaman mediante `scripts/sea-python.sh`, que prueba
+`python3`, `python` y `py -3` comprobando que ejecutan (`-c "import sys"`) y usa
+el primero que funciona (en Windows con Git Bash, `python3` puede ser un alias
+que no ejecuta nada). Si ninguno funciona, avisa y sale con 0 sin romper la
+sesión. Los hooks del núcleo (`cat`) no necesitan Python. En Windows se
+recomienda Git Bash para los hooks.
+
+**Versiones.** `plugin.json` fija la versión (`agent.version`): los usuarios solo
+reciben cambios cuando sube. `marketplace.json` usa una ruta relativa, que sigue
+la rama por defecto; **no admite fijar una etiqueta**. Para fijarla, la entrada
+debería ser de tipo `git-subdir` con `ref` y `sha`
+(code.claude.com/docs/en/plugins/marketplace-reference). `claude plugin tag`
+crea etiquetas `{name}--v{version}`; este repositorio no las crea desde sesiones
+de implementación.
+
+**Una sola vía.** No combines el plugin con la copia manual de abajo en el mismo
+proyecto: el núcleo y los hooks se cargarían dos veces. Las rutas de las Skills
+(`core/…`, `modules/…`) están redactadas para la copia manual; en el plugin,
+`core/` está en la raíz del plugin y los módulos son las propias Skills.
+
+## Instalación manual (alternativa; dónde colocar esta carpeta)
 1. Copia la carpeta **completa** `senior-engineering-agent/` (con `core/`,
    `modules/`, `adapters/`, `manifest.yaml`, `capabilities.yaml`) dentro de
    la raíz de tu repositorio destino. No copies solo este archivo — los

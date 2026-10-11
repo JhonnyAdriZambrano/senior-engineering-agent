@@ -32,10 +32,11 @@ jobs:
           command -v zip >/dev/null && command -v unzip >/dev/null \
             || (sudo apt-get update && sudo apt-get install -y zip unzip)
 
-      - name: Vistas derivadas al día (Skills y núcleo compacto)
+      - name: Vistas derivadas al día (Skills, núcleo compacto y plugin)
         run: |
           python3 scripts/generate_skills.py --check
           python3 scripts/generate_compact.py --check
+          python3 scripts/generate_plugin.py --check
 
       - name: Sintaxis de los scripts bash
         run: |

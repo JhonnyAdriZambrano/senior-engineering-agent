@@ -15,7 +15,7 @@ no basta.
 
 | Nivel | Qué es | Cuánto tarda | Usa LLM | Estado |
 |---|---|---|---|---|
-| **1. Estructural** | `tests/test_agent.py` (17 secciones): la especificación es coherente | segundos | No | ✅ existe |
+| **1. Estructural** | `tests/test_agent.py` (18 secciones): la especificación es coherente | segundos | No | ✅ existe |
 | **2. Comportamiento automatizado** | `tests/behavioral/run_scenarios.sh` (9 de 14) | minutos | Sí | ⚠️ existe, **con debilidades conocidas** (§6) |
 | **3. Comportamiento manual** | Las 14 pruebas de `tests/BENCHMARK.md` (TEST-00…TEST-13) | ~1–2 h | Sí | ✅ procedimiento en §4–§5 |
 | **4. Hooks y arnés endurecido** | Hooks de inicio de sesión y previos a comandos para Claude Code, Codex, Cursor y Gemini CLI, con tests sin LLM (sección 16 del nivel 1); canary por hook y N repeticiones automáticas | — | — | ✅ hooks (Fase C) · ⏳ arnés endurecido (Fase B, §9) |
@@ -69,12 +69,14 @@ agente.
 | 15 | Codex/Cursor sin rutas `../` (se instalan fuera del paquete) y con rutas `senior-engineering-agent/…` existentes; rutas `../` de Claude Code/Gemini/ChatGPT resuelven; subagents de solo lectura (sin herramientas de escritura / `sandbox_mode = "read-only"`), mismo juego en ambos runtimes, «Obstáculos encontrados» y NN-01…NN-10 + NN-06b en los de Codex; conteos de pruebas en prosa coherentes |
 | 16 | Hooks multi-runtime sin LLM: cada configuración (Claude Code, Codex, Cursor, Gemini CLI) llama a `adapters/hooks/sea_hooks.py` con su `--runtime`; el aviso de conocimiento faltante (solo para tareas sobre el repositorio), el caso solo-plantilla, el contenido real, la advertencia de la propia plantilla y la alerta de TEST-07 en el formato de cada runtime; la decisión ante comandos destructivos (`ask` en Claude Code y Cursor, `deny` en Codex y Gemini CLI) |
 | 17 | Herramientas del benchmark: existen `prepare_test.sh`, `finish_test.sh`/`.py`, `check_results.py` y `new_result.sh`; `check_results.py` invalida corridas sin hooks, sin recrear, con otro modelo, sin resultado o sin evidencia, y aplica 3/3 en 00, 02b, 07 y 13 |
+| 18 | Plugin de Claude Code generado: `generate_plugin.py --check` al día; `plugin.json` con la versión de `manifest.yaml`; `hooks.json` con un hook de núcleo por archivo de `core/` (cabecera de parte correcta, salida < 10.000 caracteres), rutas `${CLAUDE_PLUGIN_ROOT}/…` existentes, `sea_hooks.py` con sus plantillas; lanzador de Python que nunca pierde la salida 0; `marketplace.json` coherente; casos de `evals/` |
 
 **Si algo falla, qué hacer:**
 
 | Mensaje del FAIL | Arreglo |
 |---|---|
 | `generate_skills.py --check…` / `description igual a la del módulo…` | `python3 scripts/generate_skills.py` |
+| `generate_plugin.py --check…` / `SOBRANTE` | `python3 scripts/generate_plugin.py` (regenera `plugins/claude-code/senior-engineering-agent/`) |
 | `Bloque compacto sincronizado…` | actualiza `core/compact.md` si cambiaste `core/`, luego `python3 scripts/generate_compact.py` |
 | `Primer encabezado versionado…` / `SPECIFICATION.md cita la versión…` | alinea `manifest.yaml`, `CHANGELOG.md` y `SPECIFICATION.md §9` |
 | `conteo declarado == encabezados TEST-XX` | corrige el número en el documento señalado |
@@ -85,7 +87,7 @@ agente.
 
 | Cambié… | Corro |
 |---|---|
-| `core/` | `generate_compact.py` + nivel 1 + TEST-00, TEST-07, TEST-13 |
+| `core/` | `generate_compact.py` + `generate_plugin.py` + nivel 1 + TEST-00, TEST-07, TEST-13 |
 | `modules/` | `generate_skills.py` + nivel 1 + las pruebas del módulo tocado |
 | `adapters/` | nivel 1 + TEST-00 en ese runtime |
 | el modelo/effort o la versión del CLI | las 14 (comparas contra tus registros previos) |

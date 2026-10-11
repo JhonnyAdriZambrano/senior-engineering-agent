@@ -895,6 +895,164 @@ check("finish_test.py no depende de isatty() (stdin es una tubería con Python n
       "isatty" not in "\n".join(l for l in read("tests/sandbox/finish_test.py").splitlines() if not l.strip().startswith("#")), "usa isatty()")
 
 # ---------------------------------------------------------------------------
+print("\n== 18. Plugin de Claude Code generado (plugins/claude-code/senior-engineering-agent) y marketplace ==")
+print("   (vista derivada de core/, adapters/ y manifest.yaml; hooks del núcleo < 10.000 caracteres)")
+# ---------------------------------------------------------------------------
+import json as _pj
+import shutil as _sh
+import stat as _stat
+import tempfile as _tf
+
+PLUGIN_REL = "plugins/claude-code/senior-engineering-agent"
+PLUGIN = os.path.join(ROOT, PLUGIN_REL)
+HOOK_OUTPUT_LIMIT = 10000  # code.claude.com/docs/en/hooks: stdout/additionalContext de un hook, tope en caracteres
+
+r = subprocess.run([sys.executable, os.path.join(ROOT, "scripts", "generate_plugin.py"), "--check"], capture_output=True, text=True)
+check("scripts/generate_plugin.py --check: el plugin está sincronizado con core/, adapters/ y manifest.yaml", r.returncode == 0,
+      "; ".join(l.strip() for l in (r.stdout + r.stderr).splitlines() if l.startswith(("DESINCRONIZADO", "SOBRANTE"))) or r.stderr.strip())
+
+
+def load_json(rel):
+    try:
+        with open(os.path.join(ROOT, rel), encoding="utf-8") as f:
+            return _pj.load(f)
+    except Exception as e:  # noqa: BLE001
+        check(f"JSON válido: {rel}", False, str(e))
+        return None
+
+
+pj = load_json(PLUGIN_REL + "/.claude-plugin/plugin.json")
+hj = load_json(PLUGIN_REL + "/hooks/hooks.json")
+mj = load_json(".claude-plugin/marketplace.json")
+if pj is not None:
+    check("plugin.json y hooks.json son JSON válido", hj is not None)
+    check("plugin.json: name == agent.id de manifest.yaml", pj.get("name") == manifest["agent"]["id"], str(pj.get("name")))
+    check("plugin.json: version == agent.version de manifest.yaml", pj.get("version") == manifest["agent"]["version"],
+          f"{pj.get('version')} vs {manifest['agent']['version']}")
+    check("plugin.json: description, author.name, license y repository presentes",
+          all([pj.get("description"), (pj.get("author") or {}).get("name") == "Jhonny Adrian Zambrano Gonzalez", pj.get("license"), pj.get("repository")]),
+          str(sorted(pj)))
+    check("plugin.json: no usa campos fuera de la documentación oficial",
+          set(pj) <= {"name", "version", "description", "author", "license", "repository"}, str(sorted(pj)))
+
+# Contenido del plugin: núcleo sin compact.md, los 3 subagentes, las 7 Skills, plantillas junto a sea_hooks.py
+check("El plugin incluye core/00..05 y NO core/compact.md",
+      sorted(os.listdir(os.path.join(PLUGIN, "core"))) == sorted(os.path.basename(p) for p in manifest["core_modules"]) if os.path.isdir(os.path.join(PLUGIN, "core")) else False,
+      "core/ del plugin no coincide con manifest.yaml > core_modules")
+check("El plugin incluye los 3 subagentes y las 7 Skills",
+      len(glob.glob(os.path.join(PLUGIN, "agents", "*.md"))) == 3 and len(glob.glob(os.path.join(PLUGIN, "skills", "*", "SKILL.md"))) == len(manifest["conditional_modules"]),
+      "faltan agents/ o skills/")
+
+# sea_hooks.py localiza las plantillas tres niveles por encima de sí mismo
+_spec = _ilu.spec_from_file_location("sea_hooks_plugin", os.path.join(PLUGIN, "adapters", "hooks", "sea_hooks.py"))
+_mod = _ilu.module_from_spec(_spec)
+_spec.loader.exec_module(_mod)
+check("sea_hooks.py del plugin resuelve project-knowledge-templates/ a la misma ruta relativa y existe",
+      os.path.realpath(_mod.TEMPLATES) == os.path.realpath(os.path.join(PLUGIN, "project-knowledge-templates"))
+      and all(os.path.isfile(os.path.join(_mod.TEMPLATES, n)) for n in ("PROJECT_CONTEXT.md", "ARCHITECTURE.md")),
+      _mod.TEMPLATES)
+
+# hooks.json: estructura, matchers, rutas y salida de los hooks del núcleo
+if hj is not None:
+    hooks = hj.get("hooks", {})
+    check("hooks.json: eventos SessionStart, PreToolUse (Bash) y Stop", set(hooks) == {"SessionStart", "PreToolUse", "Stop"}
+          and hooks["PreToolUse"][0].get("matcher") == "Bash", str(sorted(hooks)))
+    check("hooks.json: SessionStart con matchers startup, clear y compact",
+          [g.get("matcher") for g in hooks.get("SessionStart", [])] == ["startup", "clear", "compact"], "matchers inesperados")
+    all_cmds = [h["command"] for ev in hooks.values() for g in ev for h in g["hooks"]]
+    check("hooks.json: todos los hooks son 'command' y citan ${CLAUDE_PLUGIN_ROOT} entre comillas",
+          all(h.get("type") == "command" for ev in hooks.values() for g in ev for h in g["hooks"])
+          and all("${CLAUDE_PLUGIN_ROOT}" not in re.sub(r'"\$\{CLAUDE_PLUGIN_ROOT\}"', "", c) for c in all_cmds),
+          "hay una ${CLAUDE_PLUGIN_ROOT} sin comillas")
+    missing = sorted({m for c in all_cmds for m in re.findall(r'"\$\{CLAUDE_PLUGIN_ROOT\}"(/[^\s"\']+)', c)
+                      if not os.path.exists(PLUGIN + m)})
+    check("hooks.json: cada ruta ${CLAUDE_PLUGIN_ROOT}/… existe en el plugin", not missing, f"inexistentes: {missing}")
+
+    bash = _sh.which("bash")
+    core_paths = manifest["core_modules"]
+    for g in hooks.get("SessionStart", []):
+        cmds = [h["command"] for h in g["hooks"]]
+        core_cmds, rest = cmds[:len(core_paths)], cmds[len(core_paths):]
+        check(f"SessionStart/{g.get('matcher')}: un hook por archivo de core/ (en el orden de manifest.yaml) + session-start de sea_hooks.py",
+              all(f'cat "${{CLAUDE_PLUGIN_ROOT}}"/{p}' in c for c, p in zip(core_cmds, core_paths))
+              and len(rest) == 1 and "sea-python.sh" in rest[0] and "session-start" in rest[0], "composición inesperada")
+        if not bash:
+            skip(f"SessionStart/{g.get('matcher')}: ejecución de los hooks del núcleo", "bash no disponible")
+            continue
+        for n, (c, p) in enumerate(zip(core_cmds, core_paths), 1):
+            run = subprocess.run([bash, "-c", c], capture_output=True, env={**os.environ, "CLAUDE_PLUGIN_ROOT": PLUGIN})
+            out = run.stdout.decode("utf-8")
+            header = f"[Núcleo SEA — parte {n} de {len(core_paths)} (orden canónico 00→05): {p}]"
+            check(f"SessionStart/{g.get('matcher')} parte {n}: sale con 0, cabecera correcta, contenido íntegro y < {HOOK_OUTPUT_LIMIT} caracteres",
+                  run.returncode == 0 and out.split("\n", 1)[0] == header and out == header + "\n" + read(p)
+                  and len(out) < HOOK_OUTPUT_LIMIT, f"rc={run.returncode}, {len(out)} caracteres, primera línea={out.splitlines()[:1]}")
+
+# Lanzador de Python: elige un intérprete que de verdad ejecuta y NUNCA pierde la salida 0
+LAUNCHER = os.path.join(PLUGIN, "scripts", "sea-python.sh")
+SEA = os.path.join(PLUGIN, "adapters", "hooks", "sea_hooks.py")
+bash = _sh.which("bash")
+check("scripts/sea-python.sh existe y es ejecutable", os.path.isfile(LAUNCHER) and bool(os.stat(LAUNCHER).st_mode & _stat.S_IXUSR), "falta o sin permiso de ejecución")
+if not bash or os.name == "nt":
+    skip("Lanzador de Python: simulación de intérpretes rotos (python3/python/py -3)", "requiere bash y shell POSIX para los intérpretes simulados")
+else:
+    def run_launcher(fakes, script_args, stdin="", real_python_as=None):
+        """fakes: {nombre: cuerpo sh}; real_python_as: nombres que apuntan al Python real."""
+        with _tf.TemporaryDirectory() as d:
+            for name, body in fakes.items():
+                path = os.path.join(d, name)
+                with open(path, "w") as f:
+                    f.write("#!/bin/sh\n" + body + "\n")
+                os.chmod(path, 0o755)
+            for name in real_python_as or []:
+                os.symlink(sys.executable, os.path.join(d, name))
+            return subprocess.run([bash, LAUNCHER] + script_args, input=stdin.encode(), capture_output=True,
+                                  env={"PATH": d, "CLAUDE_PROJECT_DIR": d, "HOME": d})
+
+    broken = 'exit 1'
+    pre_in = _pj.dumps({"tool_name": "Bash", "tool_input": {"command": "git push --force origin main"}})
+    r1 = run_launcher({"python3": broken}, [SEA, "pre-tool", "--runtime", "claude-code"], pre_in, real_python_as=["python"])
+    check("Lanzador: python3 roto -> usa python y le pasa stdin (pre-tool pide confirmación)", r1.returncode == 0 and b'"ask"' in r1.stdout,
+          f"rc={r1.returncode} out={r1.stdout[:120]!r}")
+    r2 = run_launcher({"python3": broken, "python": broken, "py": f'[ "$1" = "-3" ] || exit 1\nshift\nexec "{sys.executable}" "$@"'},
+                      [SEA, "pre-tool", "--runtime", "claude-code"], pre_in)
+    check("Lanzador: python3 y python rotos -> usa `py -3` (caso Git Bash en Windows)", r2.returncode == 0 and b'"ask"' in r2.stdout,
+          f"rc={r2.returncode} out={r2.stdout[:120]!r}")
+    r3 = run_launcher({"python3": broken, "python": broken, "py": broken}, [SEA, "session-start", "--runtime", "claude-code"])
+    check("Lanzador: ningún intérprete funciona -> sale con 0 y avisa (stdout en session-start, y stderr)",
+          r3.returncode == 0 and b"Python" in r3.stdout and b"Python" in r3.stderr, f"rc={r3.returncode} out={r3.stdout!r}")
+    r4 = run_launcher({"python3": broken, "python": broken, "py": broken}, [SEA, "stop", "--runtime", "claude-code"])
+    check("Lanzador: ningún intérprete funciona -> en otros eventos no escribe en stdout (no contamina la decisión del hook)",
+          r4.returncode == 0 and r4.stdout == b"", f"rc={r4.returncode} out={r4.stdout!r}")
+    r5 = run_launcher({"python3": 'case "$1" in -c) exit 0;; *) exit 3;; esac'}, [SEA, "session-start", "--runtime", "claude-code"])
+    check("Lanzador: el intérprete funciona pero el script falla (exit 3) -> el lanzador sale con 0", r5.returncode == 0, f"rc={r5.returncode}")
+    r6 = run_launcher({}, [SEA, "session-start", "--runtime", "claude-code"], real_python_as=["python3"])
+    check("Lanzador: session-start con el intérprete real entrega la comprobación de conocimiento",
+          r6.returncode == 0 and b"comprobaci" in r6.stdout, f"rc={r6.returncode} out={r6.stdout[:120]!r}")
+
+# marketplace.json (el propio repositorio es el marketplace)
+if mj is not None:
+    entries = mj.get("plugins") or []
+    check("marketplace.json: name, owner.name y plugins (campos obligatorios)", bool(mj.get("name")) and bool((mj.get("owner") or {}).get("name")) and bool(entries), str(sorted(mj)))
+    check("marketplace.json: nombres solo con letras, dígitos, '.', '_' y '-' (sin 'claude' ni nombres reservados)",
+          re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", str(mj.get("name"))) is not None and "claude" not in str(mj.get("name")).lower(), str(mj.get("name")))
+    e0 = entries[0] if entries else {}
+    check("marketplace.json: la entrada apunta (ruta relativa './…') al plugin generado y su name == plugin.json name",
+          e0.get("source") == "./" + PLUGIN_REL and e0.get("name") == (pj or {}).get("name") and os.path.isfile(os.path.join(ROOT, e0.get("source", "x"), ".claude-plugin", "plugin.json")),
+          str(e0.get("source")))
+    check("marketplace.json: la entrada no fija 'version' (la fuente es plugin.json; evita deriva)", "version" not in e0, "quita version de la entrada")
+
+# evals versionados dentro del plugin; resultados fuera del repo
+for case in ("c1-rol-exacto", "c3-titulos-nucleo"):
+    cdir = os.path.join(PLUGIN, "evals", case)
+    check(f"evals/{case}: prompt.md y al menos un grader", os.path.isfile(os.path.join(cdir, "prompt.md")) and bool(glob.glob(os.path.join(cdir, "graders", "*.md"))), "caso incompleto")
+check("evals/c3-titulos-nucleo: un grader por título de core/00..05 con el título real del archivo",
+      all(re.search(r"^# (\d\d — .+?) \(CORE", read(p), re.M).group(1) in read(f"{PLUGIN_REL}/evals/c3-titulos-nucleo/graders/titulo-{os.path.basename(p)[:2]}.md")
+          for p in manifest["core_modules"]), "título desfasado respecto a core/")
+check("evals/c1-rol-exacto: el grader contiene el rol canónico de manifest.yaml", manifest["agent"]["role"] in read(f"{PLUGIN_REL}/evals/c1-rol-exacto/graders/rol-exacto.md"), "rol desfasado")
+check(".gitignore ignora plugins/**/evals/results/", "plugins/**/evals/results/" in read(".gitignore"), "falta la regla")
+check("CI ejecuta generate_plugin.py --check", "generate_plugin.py --check" in read(".github/workflows/structural-tests.yml"), "falta en structural-tests.yml")
+
+# ---------------------------------------------------------------------------
 print(f"\n{'='*60}\nResultado: {PASSED} pruebas OK, {len(FAILURES)} fallidas, {len(SKIPPED)} omitidas\n{'='*60}")
 if SKIPPED:
     print("\nOMITIDAS (no cuentan como superadas; instala lo necesario y repite):")
