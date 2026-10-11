@@ -117,6 +117,7 @@ senior-engineering-agent/
     ├── generate_compact.py      core/compact.md -> adaptadores sin @import (--check)
     ├── generate_plugin.py       core/, adapters/ y manifest.yaml -> plugin de Claude Code (--check)
     ├── eval.sh                  evaluación automatizada con `claude plugin eval` (smoke|regression|capability|all)
+    ├── ablate_core.sh           ablación del núcleo (D-17): sin core/02…05 sobre 11 casos (`completo|sin-02|sin-03|sin-04|sin-05`)
     ├── eval_report.py           informe de una corrida de eval.sh (WITH / W/OUT / Δ)
     ├── check_results.py         resume tests/results/ y el estado de la puerta (benchmark manual de 1.0.0)
     └── new_result.sh            crea el registro prellenado de una corrida del benchmark

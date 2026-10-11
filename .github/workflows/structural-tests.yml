@@ -17,7 +17,10 @@ permissions:
 
 jobs:
   structural:
-    runs-on: ubuntu-latest
+    # Fijado (no ubuntu-latest): ubuntu-latest pasa a Ubuntu 26.04 el 2026-10-19 (actions/runner-images#14748,
+    # https://github.com/actions/runner-images/issues/14748). Revisar el 2026-10-19 o después: probar la suite en
+    # ubuntu-26.04 y, si pasa, subir esta versión; no volver a ubuntu-latest sin esa prueba.
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7

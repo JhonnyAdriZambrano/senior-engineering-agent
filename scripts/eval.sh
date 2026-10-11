@@ -4,7 +4,7 @@
 # Documentación oficial: https://code.claude.com/docs/en/plugin-evals
 #
 # Uso:
-#   bash scripts/eval.sh <smoke|regression|capability|all> [--runs N] [--max-cost-usd USD] [--out DIR]
+#   bash scripts/eval.sh <smoke|regression|capability|all> [--runs N] [--max-cost-usd USD] [--case GLOB] [--out DIR]
 #
 #   smoke       casos con etiqueta `critical`, 3 corridas, sin línea base (--ablation none).
 #   regression  casos con etiqueta `regression` (todos), con línea base (--ablation with-without).
@@ -12,6 +12,7 @@
 #   capability  casos con etiqueta `capability` (cap-*), con línea base; miden capacidades, no regresiones.
 #   all         todos los casos, sin filtrar por etiqueta; igual que regression en lo demás.
 #   --runs N    fuerza N corridas por caso y brazo (sustituye a `runs:`).
+#   --case GLOB filtra los casos por nombre (glob de `claude plugin eval --case`, p. ej. --case 'test-09*'); se suma al filtro por etiqueta.
 #   --max-cost-usd / EVAL_MAX_COST_USD   tope de coste estimado (defecto 20; sale con 2 y resultados parciales).
 #
 # Siempre: --model claude-sonnet-5-5 --trust-plugin --no-publish --json --scaffold --keep-temp.
@@ -26,11 +27,12 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PLUGIN="${ROOT}/plugins/claude-code/senior-engineering-agent"
 MODEL="claude-sonnet-5-5"
 MODE="${1:-}"; [ $# -gt 0 ] && shift
-RUNS=""; MAXCOST="${EVAL_MAX_COST_USD:-20}"; OUT=""
+RUNS=""; MAXCOST="${EVAL_MAX_COST_USD:-20}"; OUT=""; CASE=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --runs) RUNS="$2"; shift ;;
     --max-cost-usd) MAXCOST="$2"; shift ;;
+    --case) CASE="$2"; shift ;;
     --out) OUT="$2"; shift ;;
     *) echo "Argumento desconocido: $1" >&2; exit 2 ;;
   esac
@@ -41,7 +43,7 @@ case "${MODE}" in
   regression) TAGARGS=(--tag regression); ABL=with-without ;;
   capability) TAGARGS=(--tag capability); ABL=with-without ;;
   all) TAGARGS=(); ABL=with-without ;;
-  *) echo "Uso: $0 <smoke|regression|capability|all> [--runs N] [--max-cost-usd USD] [--out DIR]" >&2; exit 2 ;;
+  *) echo "Uso: $0 <smoke|regression|capability|all> [--runs N] [--max-cost-usd USD] [--case GLOB] [--out DIR]" >&2; exit 2 ;;
 esac
 [[ "${MAXCOST}" =~ ^[0-9]+([.][0-9]+)?$ ]] || { echo "--max-cost-usd debe ser un número (USD)." >&2; exit 2; }
 [ -z "${RUNS}" ] || [[ "${RUNS}" =~ ^[0-9]+$ ]] || { echo "--runs debe ser un entero." >&2; exit 2; }
@@ -63,11 +65,14 @@ fi
 python3 -m pytest --version >/dev/null 2>&1 || echo "AVISO: python3 sin pytest; test-09-regresion no podrá ejecutar los tests del fixture (pip install pytest)." >&2
 
 # --- Herramientas a conceder: unión de las no de solo lectura que piden los casos ---
-mapfile -t GRANTS < <(python3 - "${PLUGIN}/evals" <<'PY'
-import glob, os, re, sys
+# Con --case, solo los casos seleccionados (la concesión vale para TODOS los casos de la corrida: un caso sin Bash solo puede medirse así).
+mapfile -t GRANTS < <(python3 - "${PLUGIN}/evals" "${CASE}" <<'PY'
+import fnmatch, glob, os, re, sys
 READ_ONLY = {"Read","Glob","Grep","NotebookRead","Skill","AskUserQuestion","Agent","Task","TodoWrite","TaskCreate","TaskGet","TaskList","TaskUpdate","TaskStop"}
 found = set()
 for p in glob.glob(os.path.join(sys.argv[1], "*", "prompt.md")):
+    if sys.argv[2] and not fnmatch.fnmatch(os.path.basename(os.path.dirname(p)), sys.argv[2]):
+        continue
     m = re.search(r"^allowed_tools:\s*\[(.*?)\]", open(p, encoding="utf-8").read(), re.M)
     if m:
         found |= {t.strip().strip("\"'") for t in m.group(1).split(",") if t.strip()} - READ_ONLY
@@ -81,6 +86,7 @@ mkdir -p "${OUT}"
 CMD=(claude plugin eval "${PLUGIN}" "${TAGARGS[@]}" --ablation "${ABL}" --model "${MODEL}" --trust-plugin --no-publish
      --scaffold --keep-temp --max-cost-usd "${MAXCOST}" --output-dir "${OUT}" --json "${OUT}/result.json")
 [ -z "${RUNS}" ] || CMD+=(--runs "${RUNS}")
+[ -z "${CASE}" ] || CMD+=(--case "${CASE}")
 [ ${#GRANTS[@]} -eq 0 ] || CMD+=(--allow-tools "${GRANTS[@]}")
 echo "== eval ${MODE}: ${CMD[*]}" | tee "${OUT}/command.txt"
 

@@ -449,6 +449,8 @@ bash scripts/eval.sh regression                 # casos de regresión, 3 corrida
 bash scripts/eval.sh capability                 # casos cap-* (capacidades, no regresiones), 3 corridas, con línea base
 bash scripts/eval.sh all --max-cost-usd 15      # regresión + capacidad
 bash scripts/eval.sh all --runs 1 --max-cost-usd 10   # humo rápido (1 corrida)
+bash scripts/eval.sh regression --case 'test-09*' --max-cost-usd 1   # un solo caso (glob sobre el nombre)
+bash scripts/ablate_core.sh sin-03 --max-cost-usd 2.6   # ablación del núcleo (D-17): ver la cabecera del script
 ```
 
 - **Requisitos:** Claude Code ≥ 2.1.269, git ≥ 2.31, `python3` y, para el sandbox de Bash, `bubblewrap` y `socat` (Linux/WSL2; macOS no los necesita).
