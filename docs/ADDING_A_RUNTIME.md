@@ -41,7 +41,7 @@ bindings en un segundo archivo los desincroniza).
 |---|---|
 | Skills (formato abierto `SKILL.md`) | **Opción preferida.** Si tu runtime descubre Skills (Claude Code en `.claude/skills/`; Codex, Cursor y Gemini CLI en `.agents/skills/`), reutiliza `adapters/skills/` tal cual y documenta solo la carpeta de instalación. No generes una copia por runtime. |
 | Activación condicional por metadatos propios | Si tu runtime no lee `SKILL.md` pero tiene su propio mecanismo (p. ej. reglas con `description`/`globs`), genera la vista desde `modules/` con un script, nunca a mano. |
-| Hooks deterministas | Si tu runtime tiene un evento de inicio de sesión que añada contexto y otro previo a comandos de shell que pueda bloquear o pedir confirmación, añade un `--runtime` a `adapters/hooks/sea_hooks.py` (solo el formato de entrada/salida; las reglas son comunes) y una configuración en tu adaptador. Cubre la causa MECANISMO de TEST-02 y refuerza NN-08. |
+| Hooks deterministas | Si tu runtime tiene un evento de inicio de sesión que añada contexto y otro previo a comandos de shell que pueda bloquear o pedir confirmación, añade un `--runtime` a `adapters/hooks/sea_hooks.py` (solo el formato de entrada/salida; las reglas son comunes) y una configuración en tu adaptador. Cubre la causa MECANISMO de TEST-02 y refuerza NN-08. Si además tu runtime tiene un evento de fin de turno que pueda bloquear la terminación, el subcomando `stop` (hoy solo implementado y validado en Claude Code) exige validar los cambios y conservar los hallazgos fuera de alcance; decláralo como pendiente si no lo implementas. |
 | Subagent de solo lectura | Opcional y complementario. Solo para trabajo cuyo detalle intermedio no importa (exploración, revisión independiente, investigación); con formato de salida fijo y sección «Obstáculos encontrados». Implementar, ejecutar tests y decidir con el usuario se quedan en el hilo principal. |
 | Referencia manual en prosa | Si tu runtime no tiene ningún mecanismo de activación condicional — documenta explícitamente que la "carga bajo demanda" en ese runtime es una convención de comportamiento que el modelo debe decidir seguir, no una garantía estructural (sé honesto sobre esta limitación, no la ocultes). |
 
@@ -56,7 +56,9 @@ bindings en un segundo archivo los desincroniza).
 - [ ] Añadida una fila nueva en la matriz de compatibilidad de `SPECIFICATION.md §7`.
 - [ ] Si tu adaptador no puede hacer `@import`: bloque `BEGIN/END:compact` añadido, ruta registrada en `scripts/generate_compact.py` y `tests/test_agent.py`, y `python3 scripts/generate_compact.py` ejecutado (garantiza que NN-06b y el rol canónico llegan a tu runtime).
 - [ ] Si tu adaptador consume Skills: instrucciones para copiar `adapters/skills/` a la carpeta que descubre tu runtime, y `python3 scripts/generate_skills.py --check` en verde.
-- [ ] Ejecutado `tests/run_tests.sh` y confirmado que sigue en verde (valida estructura, consistencia de triggers, ausencia de secretos y sincronización Skill↔módulo, no el comportamiento del runtime en sí, que no se puede automatizar sin ese runtime real).
+- [ ] Si el adaptador incluye scripts de shell (`*.sh`): fin de línea LF (`.gitattributes` ya lo fuerza) y bit de ejecución en el índice de git (`git ls-files -s` → 100755); `tests/test_agent.py` lo comprueba.
+- [ ] Estado de validación en uso real declarado en el README y en `SPECIFICATION.md §7` («validado» solo si se ejecutó en ese runtime; si no, «sin validar en uso real»).
+- [ ] Ejecutado `python3 tests/test_agent.py` (o `tests/run_tests.sh`) y confirmado que sigue en verde (valida estructura, consistencia de triggers, ausencia de secretos y sincronización Skill↔módulo, no el comportamiento del runtime en sí, que no se puede automatizar sin ese runtime real).
 
 ## 5. Qué nunca debe tocar un adaptador nuevo
 

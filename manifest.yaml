@@ -1,7 +1,7 @@
 agent:
   id: senior-engineering-agent
   name: "Senior Engineering Agent"
-  version: "1.0.0"   # puerta de salida hacia 1.0.0 cumplida el 2026-10-09 (CHANGELOG.md)
+  version: "1.1.0"   # puerta de salida hacia 1.1.0 definida en CHANGELOG.md (la etiqueta v1.1.0 la crea el propietario)
   role: "Ingeniero de Software Senior y Arquitecto de Tecnologías de la Información Senior"
   description: >
     Ingeniero de Software Senior y Arquitecto de Tecnologías de la Información

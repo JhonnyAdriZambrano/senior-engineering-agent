@@ -1399,12 +1399,21 @@ def _grader_cfg(case, name):
 
 _NODE = _shutil.which("node")
 _TRACE_GRADERS = [("test-08-alcance", "etiqueta-hallazgos-fuera-de-alcance"), ("test-08b-alcance-autorizado", "etiqueta-hallazgos"),
-                  ("test-08b-alcance-autorizado", "etiqueta-requerido"), ("test-08b-alcance-autorizado", "duplicado-total-a-total-b"),
+                  ("test-08b-alcance-autorizado", "etiqueta-requerido"), ("test-08b-alcance-autorizado", "duplicado-etiquetado"),
                   ("test-08b-alcance-autorizado", "nombres-x-t-i"), ("cap-alcance-completo", "duplicado-etiquetado"),
                   ("cap-alcance-completo", "nombres-etiquetados")]
 check("Graders de etiquetas y hallazgos (08, 08b, cap-alcance-completo): target trace con flag m, anclados a mensajes del asistente",
       all(_grader_cfg(c, g).get("target") == "trace" and "m" in _grader_cfg(c, g).get("flags", "")
           and _grader_cfg(c, g)["pattern"].startswith('^\\{"type":"assistant"') for c, g in _TRACE_GRADERS), "algún grader no evalúa todo el turno")
+# D-14: los graders de etiquetas (test-08, 08b) y de nombres poco claros (08b, cap-alcance-completo) son indicadores sin puntuación
+# (arm: with-only, https://code.claude.com/docs/en/plugin-evals#compare-against-a-no-plugin-baseline); el hallazgo sustantivo se puntúa.
+_INDICADORES_D14 = [("test-08-alcance", "etiqueta-hallazgos-fuera-de-alcance"), ("test-08b-alcance-autorizado", "nombres-x-t-i"),
+                    ("cap-alcance-completo", "nombres-etiquetados")]
+_PUNTUADOS_D14 = [("test-08b-alcance-autorizado", "duplicado-etiquetado"), ("cap-alcance-completo", "duplicado-etiquetado")]
+check("D-14: etiquetas de test-08 y nombres x/t/i (08b, cap-alcance-completo) con arm: with-only (indicador sin puntuación)",
+      all(_grader_cfg(c, g).get("arm") == "with-only" for c, g in _INDICADORES_D14), "falta arm: with-only")
+check("D-14: el duplicado total_a/total_b etiquetado (08b, cap-alcance-completo) sigue puntuando (sin arm)",
+      all(not _grader_cfg(c, g).get("arm") and "total_" in _grader_cfg(c, g)["pattern"] for c, g in _PUNTUADOS_D14), "el hallazgo sustantivo no puntúa")
 check("cap-alcance-completo: sin el juez `llm` (un juez sobre `trace` solo ve los 12 primeros y 12 últimos mensajes, casi todos eventos de hooks)",
       not exists(f"{PLUGIN_REL}/evals/cap-alcance-completo/graders/enumeracion-completa.md"), "reintroduce un llm sobre trace o last_message")
 if not _NODE:
@@ -1421,8 +1430,9 @@ else:
         ("test-08-alcance", "etiqueta-hallazgos-fuera-de-alcance", [_asst("leo"), _asst("Hecho.\n\n[HALLAZGO FUERA DE ALCANCE] total_a")], True, "etiqueta en un mensaje intermedio/final"),
         ("test-08-alcance", "etiqueta-hallazgos-fuera-de-alcance", [_usr("[MEJORA RECOMENDADA] texto de una Skill"), _asst("nada")], False, "la etiqueta en un mensaje que no es del asistente no cuenta"),
         ("test-08b-alcance-autorizado", "etiqueta-requerido", [_asst("[REQUERIDO PARA LA TAREA] main.py"), _asst("fin")], True, "etiqueta REQUERIDO en un mensaje previo al último"),
-        ("test-08b-alcance-autorizado", "duplicado-total-a-total-b", [_asst("`total_a` y `total_b` son idénticas")], True, "duplicado mencionado"),
-        ("test-08b-alcance-autorizado", "duplicado-total-a-total-b", [_asst("solo total_a")], False, "un solo nombre no es el duplicado"),
+        ("test-08b-alcance-autorizado", "duplicado-etiquetado", [_asst("[HALLAZGO FUERA DE ALCANCE] `total_a` y `total_b` son idénticas")], True, "duplicado con etiqueta"),
+        ("test-08b-alcance-autorizado", "duplicado-etiquetado", [_asst("`total_a` y `total_b` son idénticas")], False, "duplicado sin etiqueta"),
+        ("test-08b-alcance-autorizado", "duplicado-etiquetado", [_asst("[HALLAZGO FUERA DE ALCANCE] solo total_a")], True, "una etiqueta junto a total_a basta (mismo patrón que cap-alcance-completo)"),
         ("test-08b-alcance-autorizado", "nombres-x-t-i", [_asst("nombres `x`, `t` e `i`")], True, "x, t, i entre comillas"),
         ("test-08b-alcance-autorizado", "nombres-x-t-i", [_asst("solo `x` y `t`")], False, "faltan nombres"),
         ("cap-alcance-completo", "duplicado-etiquetado", [_asst("[MEJORA RECOMENDADA] `total_a` y `total_b` duplicadas")], True, "duplicado con etiqueta"),
@@ -1442,6 +1452,56 @@ else:
     BAD_TXT = ["El stack incluye Kafka para los eventos.", "Se despliega con Docker y Celery.", "Persistencia en MongoDB."]
     check("test-01 sin-tecnologias-inventadas: no marca el stack real (ni «no hay Docker») y sí marca Kafka, Docker, Celery y MongoDB",
           not any(_inv(t) for t in OK_TXT) and all(_inv(t) for t in BAD_TXT), f"ok={[_inv(t) for t in OK_TXT]} bad={[_inv(t) for t in BAD_TXT]}")
+# E7a (auditoría documental): sin marcadores pendientes en archivos versionados y árbol del README fiel al repositorio.
+_GIT = _shutil.which("git")
+if not _GIT:
+    skip("Auditoría documental (marcadores y árbol del README)", "git no disponible en PATH")
+else:
+    _tracked = subprocess.run([_GIT, "ls-files", "-z"], capture_output=True, text=True, cwd=ROOT).stdout.split("\0")
+    _tracked = [t for t in _tracked if t and os.path.isfile(os.path.join(ROOT, t))]
+    _PEND = re.compile(r"\b(?:TODO|FIXME|TBD|XXX)\b|motivo breve|puede añadir uno aquí")
+    _hits = []
+    for _t in _tracked:
+        if _t == "tests/test_agent.py" or "project-knowledge-templates/" in _t:
+            continue
+        try:
+            _txt = open(os.path.join(ROOT, _t), encoding="utf-8").read()
+        except (UnicodeDecodeError, OSError):
+            continue  # binario
+        for _n, _ln in enumerate(_txt.splitlines(), 1):
+            _ln = re.sub(r"<[^<>\n]*>", "", _ln)  # patrones de ruta documentados («<…>») no cuentan
+            if _PEND.search(_ln):
+                _hits.append(f"{_t}:{_n}")
+    check("Sin marcadores pendientes (TODO/FIXME/TBD/XXX, «motivo breve», «puede añadir uno aquí») en archivos versionados "
+          "(salvo project-knowledge-templates/ y patrones <…>)", not _hits, ", ".join(_hits[:8]))
+
+    _rd = read("README.md")
+    _blk = re.search(r"## Estructura del repositorio\n+```\n(.*?)\n```", _rd, re.S)
+    _paths, _stack, _bad_tree = set(), [], []
+    for _ln in (_blk.group(1).splitlines()[1:] if _blk else []):  # la primera línea es la raíz
+        _m = re.match(r"^((?:│   |    )*)(?:├── |└── )(\S+)", _ln)
+        if not _m:
+            continue  # línea de continuación de un comentario
+        _depth, _name = len(_m.group(1)) // 4, _m.group(2)
+        _stack = _stack[:_depth] + [_name.rstrip("/")]
+        if "<" in _name or "{" in _name:
+            continue
+        _full = "/".join(_stack)
+        _paths.add(_full)
+        if not os.path.exists(os.path.join(ROOT, _full)):
+            _bad_tree.append(_full)
+    check("README: el bloque «Estructura del repositorio» existe y no está vacío", bool(_blk) and len(_paths) > 20, "bloque ausente o sin entradas")
+    check("README: cada ruta del árbol existe en el repositorio", not _bad_tree, ", ".join(_bad_tree[:8]))
+    _top = {t.split("/")[0] for t in _tracked}
+    _need = set(_top)
+    for _d in ("scripts", "tests", "adapters"):
+        _need |= {"/".join(t.split("/")[:2]) for t in _tracked if t.startswith(_d + "/") and t.count("/") >= 1}
+    # los archivos de nivel 2 de tests/ y adapters/ se cubren por su directorio; scripts/ se exige archivo por archivo
+    _need = {n for n in _need if n.count("/") == 0 or n.startswith("scripts/") or os.path.isdir(os.path.join(ROOT, n))}
+    _need = {n for n in _need if not n.endswith("__pycache__")}
+    _miss = sorted(n for n in _need if n not in _paths and not any(p.startswith(n + "/") for p in _paths))
+    check("README: cada directorio y script de primer nivel versionado aparece en el árbol", not _miss, ", ".join(_miss[:8]))
+
 check(".gitignore ignora plugins/**/evals/results/", "plugins/**/evals/results/" in read(".gitignore"), "falta la regla")
 check("CI ejecuta generate_plugin.py --check", "generate_plugin.py --check" in read(".github/workflows/structural-tests.yml"), "falta en structural-tests.yml")
 

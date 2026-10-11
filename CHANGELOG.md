@@ -22,10 +22,46 @@ código ejecutable), MAJOR/MINOR/PATCH se interpretan así:
 cambios de comportamiento. La etiqueta `1.0.0` se asignó el 2026-10-09 al
 cumplirse la *Puerta de salida hacia 1.0.0* (más abajo).
 
-## [Sin publicar]
+## [1.1.0] — 2026-10-11
 
-Etapas E1 (remediación), E2 (plugin de Claude Code), E3a (evaluación automatizada), E3b (calidad de la medición) y E3c (remediación de las
-barreras medidas) del plan de mejora posterior a 1.0.0. No cambian la versión de `manifest.yaml`; `core/` solo cambia en E3c (`core/03`, decisión D-12).
+Versión MINOR: distribución como plugin de Claude Code, evaluación automatizada y barreras deterministas nuevas. No cambia ninguna regla NN
+(`core/01`); `core/03` recibe dos aclaraciones de cierre (E3c, D-12). La etiqueta `v1.1.0` la crea el propietario al cumplir la
+*Puerta de salida hacia 1.1.0* (más abajo); este cambio no crea etiquetas.
+
+### Resumen (plan de mejora posterior a 1.0.0)
+
+- **E1 — remediación:** hook `Stop` para Claude Code (bloquea una vez si hubo ediciones sin validación), capacidad `VISUAL_INSPECTION` (sin binding),
+  pruebas estructurales nuevas.
+- **E2 — plugin de Claude Code:** vista GENERADA `plugins/claude-code/senior-engineering-agent/` (7 Skills, Subagents, núcleo inyectado por hooks
+  `SessionStart`, `sea_hooks.py`, lanzador `sea-python.sh`) y `.claude-plugin/marketplace.json` (el repo es su propio marketplace). Instalación por plugin
+  como vía principal; la copia manual queda como alternativa.
+- **E3a — evaluación automatizada:** casos de `claude plugin eval` para 11 de las 14 pruebas del benchmark (13 casos; manuales: TEST-05, 10 y 11),
+  `scripts/eval.sh` y `scripts/eval_report.py` (WITH / W/OUT / Δ). `tests/behavioral/run_scenarios.sh` queda obsoleto.
+- **E3b — calidad de la medición:** graders endurecidos, `runs: 3` en todos los casos, casos de diagnóstico y de capacidad (`cap-*`).
+- **E3c — remediación de barreras:** `.gitattributes` (LF) y portabilidad en Windows; hooks `session-start`/`stop` que garantizan señalar una instrucción
+  incrustada (TEST-07, D-11) y reconocen más ediciones/validaciones; aclaraciones de cierre en `core/03` (D-12); medición sobre todos los mensajes del turno.
+  **Subagentes:** Claude Code conserva 2 (`code-reviewer-agent`, `project-bootstrap-research-agent`); el explorador (`repository-explorer-agent`) se retiró
+  de Claude Code (D-3) y solo sigue en Codex, **sin medir**.
+- **E7a (esta preparación):** versión 1.1.0 en `manifest.yaml` y vistas regeneradas; D-14 (los graders de etiquetas de test-08 y de nombres poco claros de
+  test-08b y cap-alcance-completo pasan a indicador sin puntuación; el duplicado `total_a`/`total_b` etiquetado se exige en test-08b y cap-alcance-completo);
+  D-13 («ningún Δ < 0» solo en la suite de regresión; los casos de capacidad se reportan); D-8 (estado de validación por runtime); auditoría documental
+  (README, `SPECIFICATION.md §2/§7/§9`, `tests/BENCHMARK.md`, `tests/GUIA_BENCHMARK.md`, `tests/MANUAL_SCENARIOS.md`, `docs/ADDING_A_RUNTIME.md`,
+  adaptadores) y prueba estructural nueva contra marcadores pendientes y contra el árbol del README desfasado. Contacto comercial de `LICENSE`: solo el Issue de GitHub.
+
+### Puerta de salida hacia 1.1.0
+
+La etiqueta `v1.1.0` solo se asigna cuando se cumplen TODOS estos puntos:
+
+1. **Regresión:** `scripts/eval.sh regression` con los casos críticos (TEST-00, 02b, 07 y 13) en pass^3 (las 3 corridas del brazo con plugin, perfectas) y
+   **ningún Δ < 0 en la suite de regresión** (D-13: los casos `capability` se reportan, no bloquean).
+2. **Calibración humana:** revisión de todos los graders FAIL del brazo con plugin y de 1 PASS por caso crítico (transcripción y explicación del grader), para
+   confirmar que la medición es correcta antes de fiarse del número.
+3. **CI en verde y vistas al día:** `structural-tests` en verde sobre el commit a etiquetar; `generate_skills.py`, `generate_compact.py` y
+   `generate_plugin.py --check` sin diferencias; `claude plugin validate` (y `--strict`) sin errores.
+4. **Aceptación del plugin en el PC del propietario:** instalarlo desde el marketplace, comprobar que el núcleo llega tras `/clear` y `/compact`, que el
+   hook de NN-08 pide confirmación ante una operación destructiva, y que `/plugin update` aplica la versión 1.1.0.
+
+### Detalle por etapa
 
 ### Cambiado / Añadido / Eliminado (E3c: remediación de barreras para la puerta de 1.1.0)
 
@@ -83,7 +119,7 @@ barreras medidas) del plan de mejora posterior a 1.0.0. No cambian la versión d
 - **Plugin** `plugins/claude-code/senior-engineering-agent/`, vista GENERADA por
   `scripts/generate_plugin.py` (con `--check`, en CI y en `tests/test_agent.py`
   sección 18): `plugin.json` (versión leída de `manifest.yaml`), las 7 Skills,
-  los 3 Subagents, `core/00…05`, `sea_hooks.py` con sus plantillas en la misma
+  los Subagents (3 al publicarse E2; 2 desde E3c), `core/00…05`, `sea_hooks.py` con sus plantillas en la misma
   ruta relativa y `LICENSE`.
 - **Núcleo por hooks `SessionStart`** (`startup`, `clear`, `compact`): un hook por
   archivo de `core/`, cada salida con la cabecera `[Núcleo SEA — parte X de 6

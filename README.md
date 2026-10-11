@@ -17,7 +17,7 @@ Projects y Gemini Gems sin reescribir el comportamiento en cada plataforma.
   sistema `zip`/`unzip`. Con Python 3.10, instala también `tomli` para no
   omitir la validación TOML.
 - **En Windows**: el plugin de Claude Code ejecuta sus hooks con **Git Bash**
-  (`scripts/sea-python.sh` es un script de bash). El repositorio incluye un
+  (`plugins/claude-code/senior-engineering-agent/scripts/sea-python.sh` es un script de bash). El repositorio incluye un
   `.gitattributes` (`* text=auto eol=lf`) que fuerza fin de línea LF en la
   copia de trabajo aunque `core.autocrlf=true`; sin él, los `.sh` quedarían
   con CRLF y fallarían con «$'\r': command not found». Si ya clonaste antes de
@@ -50,40 +50,86 @@ basada en evidencia de cada decisión de diseño.
 
 ```
 senior-engineering-agent/
-├── README.md                  este archivo
-├── CHANGELOG.md                historial de versiones y política de versionado
-├── SPECIFICATION.md            arquitectura completa, contrato del agente
+├── README.md                    este archivo
+├── CHANGELOG.md                 historial de versiones y política de versionado
+├── SPECIFICATION.md             arquitectura completa, contrato del agente
+├── LICENSE                      CC BY-NC 4.0 + aclaraciones del autor
 ├── manifest.yaml                identidad, versión, índice de módulos
 ├── capabilities.yaml            capacidades abstractas → binding por runtime
+├── .gitattributes               fin de línea LF (portabilidad en Windows)
+├── .gitignore                   higiene de Git (secretos, builds, resultados)
+├── .env.example                 documenta que el proyecto no requiere variables propias
+├── .github/
+│   └── workflows/
+│       └── structural-tests.yml CI: suite estructural y comprobaciones --check (sin LLM)
+├── .claude-plugin/
+│   └── marketplace.json         el repo es el marketplace del plugin de Claude Code
 ├── core/                        6 archivos siempre cargados + compact.md
 │                                (resumen DERIVADO para runtimes sin @import)
 ├── modules/                     7 módulos de carga condicional
 ├── adapters/                    un directorio por runtime soportado
-│   ├── skills/                   7 Skills (SKILL.md) GENERADAS desde modules/,
-│   │                             compartidas por Claude Code, Codex, Cursor y Gemini CLI
-│   ├── claude-code/              CLAUDE.md + agents/ (2 Subagents de solo lectura)
-│   │                             + settings.hooks.json (hooks SessionStart, PreToolUse)
-│   ├── hooks/sea_hooks.py        lógica común de los hooks (Claude Code, Codex, Cursor, Gemini CLI)
-│   ├── codex/                    AGENTS.md + agents/ (3 Subagents de solo lectura; el explorador, sin medir)
-│   ├── cursor/rules/              regla alwaysApply con el núcleo compacto
-│   ├── gemini-cli/                GEMINI.md
-│   └── chatgpt-and-gems/          instrucciones comprimidas + archivos adjuntos
-├── plugins/claude-code/senior-engineering-agent/  plugin de Claude Code GENERADO (+ evals/ propios)
-├── .claude-plugin/marketplace.json  el repo es el marketplace del plugin
+│   ├── skills/                  7 Skills (SKILL.md) GENERADAS desde modules/,
+│   │                            compartidas por Claude Code, Codex, Cursor y Gemini CLI
+│   ├── hooks/
+│   │   └── sea_hooks.py         lógica común de los hooks (Claude Code, Codex, Cursor, Gemini CLI)
+│   ├── claude-code/             CLAUDE.md + agents/ (2 Subagents de solo lectura)
+│   │                            + settings.hooks.json (hooks SessionStart, PreToolUse y Stop)
+│   ├── codex/                   AGENTS.md + hooks.json + agents/ (3 Subagents de solo lectura;
+│   │                            el explorador, sin medir)
+│   ├── cursor/                  hooks.json + rules/ (regla alwaysApply con el núcleo compacto)
+│   ├── gemini-cli/              GEMINI.md + settings.hooks.json
+│   └── chatgpt-and-gems/        instrucciones comprimidas + archivos adjuntos
+├── plugins/
+│   └── claude-code/
+│       └── senior-engineering-agent/   plugin de Claude Code GENERADO (scripts/generate_plugin.py)
+│           ├── .claude-plugin/
+│           │   └── plugin.json  nombre y versión (leída de manifest.yaml)
+│           ├── LICENSE          copia de la licencia
+│           ├── core/            copia de core/00-05
+│           ├── skills/          copia de adapters/skills/
+│           ├── agents/          copia de adapters/claude-code/agents/
+│           ├── hooks/
+│           │   └── hooks.json   un SessionStart por archivo de core/, más PreToolUse y Stop
+│           ├── adapters/
+│           │   └── hooks/
+│           │       └── sea_hooks.py  misma ruta relativa que en la fuente
+│           ├── project-knowledge-templates/  plantillas que el hook SessionStart necesita
+│           ├── scripts/
+│           │   └── sea-python.sh  lanzador de Python (python3 | python | py -3)
+│           └── evals/           casos de `claude plugin eval` (escritos a mano, versionados)
+│               └── README.md    qué se automatiza y criterio → grader
 ├── project-knowledge-templates/ plantillas que copias a TU proyecto real
 ├── docs/
 │   └── ADDING_A_RUNTIME.md      contrato para construir un adaptador nuevo
-├── tests/                        validación estructural + benchmark de comportamiento
-│   ├── GUIA_BENCHMARK.md         CÓMO ejecutar todas las pruebas (empieza aquí)
-│   ├── sandbox/setup_sandbox.sh  crea el sandbox del benchmark (estados A/B/C)
-│   └── results/                  registros de corridas (plantilla _TEMPLATE.md)
+├── tests/                       validación estructural + evaluación de comportamiento
+│   ├── test_agent.py            validación estructural (nivel 1, sin LLM)
+│   ├── run_tests.sh             punto de entrada de test_agent.py
+│   ├── BENCHMARK.md             14 pruebas formales, criterios PASS/PARTIAL/FAIL
+│   ├── GUIA_BENCHMARK.md        CÓMO ejecutar todas las pruebas (empieza aquí)
+│   ├── MANUAL_SCENARIOS.md      escenarios narrativos de verificación manual
+│   ├── behavioral/              arnés heurístico run_scenarios.sh (OBSOLETO: lo sustituye scripts/eval.sh)
+│   ├── sandbox/                 crea el sandbox del benchmark (estados A/B/C)
+│   └── results/                 registros de corridas (plantilla _TEMPLATE.md)
 └── scripts/
-    ├── build_zip.sh              empaquetado determinista (dist | repo)
-    ├── generate_skills.py        modules/ -> adapters/skills/ (--check solo comprueba)
-    ├── generate_compact.py       core/compact.md -> adaptadores sin @import
-    ├── generate_plugin.py        core/, adapters/ y manifest.yaml -> plugin de Claude Code (--check solo comprueba)
-    └── new_result.sh             crea el registro prellenado de una corrida del benchmark
+    ├── build_zip.sh             empaquetado determinista (dist | repo)
+    ├── generate_skills.py       modules/ -> adapters/skills/ (--check solo comprueba)
+    ├── generate_compact.py      core/compact.md -> adaptadores sin @import (--check)
+    ├── generate_plugin.py       core/, adapters/ y manifest.yaml -> plugin de Claude Code (--check)
+    ├── eval.sh                  evaluación automatizada con `claude plugin eval` (smoke|regression|capability|all)
+    ├── eval_report.py           informe de una corrida de eval.sh (WITH / W/OUT / Δ)
+    ├── check_results.py         resume tests/results/ y el estado de la puerta (benchmark manual de 1.0.0)
+    └── new_result.sh            crea el registro prellenado de una corrida del benchmark
 ```
+
+## Estado de validación por runtime (versión 1.1.0)
+
+| Runtime | Estado | Qué significa |
+|---|---|---|
+| Claude Code | **validado** | Evaluado en uso real con `claude plugin eval` y el benchmark (`tests/results/`, `CHANGELOG.md`). |
+| Codex | pendiente de validar (etapa E4') | Adaptador y hooks probados sin LLM; sin ejecución real todavía. |
+| Gemini CLI | sin validar en uso real | Solo pruebas estructurales. |
+| Cursor | sin validar en uso real | Solo pruebas estructurales. |
+| ChatGPT Projects / Gemini Gems | sin validar en uso real | Instrucciones comprimidas; sin ejecución real. |
 
 ## Instalación y uso
 
@@ -101,8 +147,8 @@ marketplace (`.claude-plugin/marketplace.json`). Dentro de Claude Code:
 `/plugin install senior-engineering-agent --marketplace JhonnyAdriZambrano/senior-engineering-agent`.)
 El plugin trae las 7 Skills, los 2 Subagents de solo lectura, el núcleo
 (inyectado al iniciar la sesión por un hook `SessionStart` por cada archivo de
-`core/`) y los hooks deterministas; no hace falta tocar `CLAUDE.md` ni copiar
-nada. Es una **vista generada** (`plugins/claude-code/senior-engineering-agent/`,
+`core/`) y los hooks deterministas (`SessionStart`, `PreToolUse` y `Stop`); no hace
+falta tocar `CLAUDE.md` ni copiar nada. Es una **vista generada** (`plugins/claude-code/senior-engineering-agent/`,
 `python3 scripts/generate_plugin.py`), no una segunda fuente de verdad. Los
 hooks de Python usan un lanzador que prueba `python3`, `python` y `py -3`.
 En Windows se recomienda Git Bash para los hooks. Los hooks de un mismo evento
@@ -125,8 +171,10 @@ proyecto).
    de bootstrap; el explorador se retiró en E3c, decisión D-3).
 5. Recomendado: copia `adapters/claude-code/settings.hooks.json` a
    `.claude/settings.json` (o fusiónalo) para activar los hooks
-   deterministas: aviso de conocimiento faltante al iniciar la sesión y
-   confirmación obligatoria de operaciones destructivas. Requiere Python 3.8+.
+   deterministas: aviso de conocimiento faltante al iniciar la sesión
+   (`SessionStart`), confirmación obligatoria de operaciones destructivas
+   (`PreToolUse`) y exigencia de validar los cambios al terminar el turno
+   (`Stop`). Requiere Python 3.8+.
 6. Copia `project-knowledge-templates/*.md` a la raíz de tu proyecto
    (quitando `[Nombre del proyecto]` y rellenando), o deja que
    `project-knowledge-bootstrap` te ayude a generarlas tras correr `/init`.
@@ -206,9 +254,9 @@ Esto es validación **estructural** (estática), no un test de comportamiento
 real del agente. Para eso existen dos niveles: `tests/BENCHMARK.md`
 (14 pruebas formales con criterios objetivos PASS/PARTIAL/FAIL y
 diagnóstico de causa raíz — Modelo/Prompt/Contexto del proyecto/Tooling) y
-`tests/behavioral/run_scenarios.sh` (**OBSOLETO**: lo sustituye `claude plugin eval`, ver abajo; 9 de esas 14 automatizadas contra
-una instalación real de Claude Code vía `claude -p --output-format json`).
-Ambos son screening heurístico, no perfecto — revisa `tests/MANUAL_SCENARIOS.md`
+la evaluación automatizada con `scripts/eval.sh` (vigente, ver abajo).
+`tests/behavioral/run_scenarios.sh` está **OBSOLETO**. Ambos niveles son
+screening, no un oráculo — revisa `tests/MANUAL_SCENARIOS.md`
 para el detalle narrativo de cada caso. **Procedimiento paso a paso (sandbox,
 fixtures, repeticiones, qué PASS del script no creer aún):
 `tests/GUIA_BENCHMARK.md`.**
@@ -216,7 +264,8 @@ fixtures, repeticiones, qué PASS del script no creer aún):
 **Evaluación automatizada (`claude plugin eval`).** `bash scripts/eval.sh <smoke|regression|all>` ejecuta los casos de
 `plugins/claude-code/senior-engineering-agent/evals/` (13 casos del benchmark automatizados total o parcialmente, más 2 indicadores del
 núcleo) y mide el valor del agente frente al modelo solo (Δ). Requiere `bubblewrap` y `socat` (WSL2 en Windows) y consume plan o API; los
-resultados van a `tests/results/evals/` (no se versiona). Qué se automatiza, qué es manual y la tabla criterio → grader: `evals/README.md`;
+resultados van a `tests/results/evals/` (no se versiona). Qué se automatiza, qué es manual y la tabla criterio → grader:
+`plugins/claude-code/senior-engineering-agent/evals/README.md`;
 procedimiento: `tests/GUIA_BENCHMARK.md` §6b.
 
 ## Generar el ZIP de distribución

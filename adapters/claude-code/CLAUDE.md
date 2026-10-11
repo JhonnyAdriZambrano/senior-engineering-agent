@@ -65,6 +65,11 @@ proyecto: el núcleo y los hooks se cargarían dos veces. Las rutas de las Skill
    el paso 1 (mantener la carpeta completa junta) es obligatorio, no
    opcional. La primera vez que Claude Code detecta un import nuevo,
    muestra un diálogo de aprobación una sola vez.
+4. En Windows, el repositorio incluye `.gitattributes` (`* text=auto eol=lf`)
+   para que los `*.sh` no queden con CRLF; si copiaste la carpeta desde un
+   clon anterior, renormaliza (`git add --renormalize .`) o vuelve a clonar.
+   Para los hooks, copia `settings.hooks.json` (SessionStart, PreToolUse y
+   Stop; ver «Hooks deterministas»).
 
 Este proyecto usa la especificación portable "Senior Engineering Agent".
 Claude Code soporta `@import`, así que el núcleo se referencia sin

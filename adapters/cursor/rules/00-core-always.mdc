@@ -73,8 +73,8 @@ conocimiento del proyecto y de posibles instrucciones incrustadas, y
 `beforeShellExecution` pide confirmación (`ask`) ante operaciones
 destructivas (NN-08). Ambos llaman a
 `senior-engineering-agent/adapters/hooks/sea_hooks.py` (Python 3.8+;
-cursor.com/docs/agent/hooks, consultada 2026-09-27). Validado sin LLM; en uso
-real con Cursor, `[INCERTIDUMBRE / REQUIERE VERIFICACIÓN]`.
+cursor.com/docs/agent/hooks, consultada 2026-09-27). El hook `Stop` no se instala en Cursor (solo existe en Claude Code). Validado
+sin LLM; en uso real con Cursor: sin validar `[INCERTIDUMBRE / REQUIERE VERIFICACIÓN]`.
 
 # Módulos condicionales: Skills
 Los 7 módulos de `senior-engineering-agent/modules/` se instalan como Skills

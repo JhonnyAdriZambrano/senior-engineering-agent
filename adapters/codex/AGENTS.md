@@ -81,8 +81,10 @@ instrucciones incrustadas (su texto entra como contexto), y `PreToolUse`
 (`Bash`) **bloquea** operaciones destructivas: Codex aún no admite pedir
 confirmación desde un hook, así que el agente debe explicarlas y, si el
 usuario las autoriza, darle el comando para que lo ejecute él (NN-08).
-Validado sin LLM; en uso real con Codex, `[INCERTIDUMBRE / REQUIERE
-VERIFICACIÓN]`.
+El hook `Stop` no se instala en Codex (solo existe en Claude Code; su
+equivalente está pendiente de verificar con fuente primaria). Validado sin
+LLM; en uso real con Codex, pendiente de validar (etapa E4'): `[INCERTIDUMBRE /
+REQUIERE VERIFICACIÓN]`.
 
 ## Cambios y alcance
 - No amplíes el alcance de la tarea sin justificación explícita (ver

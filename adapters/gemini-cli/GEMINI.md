@@ -57,7 +57,8 @@ conocimiento del proyecto y de posibles instrucciones incrustadas;
 Ambos llaman a `adapters/hooks/sea_hooks.py` (Python 3.8+;
 geminicli.com/docs/hooks, consultada 2026-09-27). El nombre del argumento con
 el comando de `run_shell_command` no está confirmado en la documentación: el
-hook lo busca de forma tolerante. En uso real con Gemini CLI,
+hook lo busca de forma tolerante. El hook `Stop` no se instala en Gemini CLI
+(solo existe en Claude Code). En uso real con Gemini CLI: sin validar
 `[INCERTIDUMBRE / REQUIERE VERIFICACIÓN]`.
 
 ## Módulos condicionales: Skills

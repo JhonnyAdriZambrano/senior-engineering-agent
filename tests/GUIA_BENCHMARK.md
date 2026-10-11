@@ -16,7 +16,7 @@ no basta.
 | Nivel | Qué es | Cuánto tarda | Usa LLM | Estado |
 |---|---|---|---|---|
 | **1. Estructural** | `tests/test_agent.py` (18 secciones): la especificación es coherente | segundos | No | ✅ existe |
-| **2. Comportamiento automatizado** | `tests/behavioral/run_scenarios.sh` (9 de 14) | minutos | Sí | ⚠️ existe, **con debilidades conocidas** (§6) |
+| **2. Comportamiento automatizado** | `scripts/eval.sh` (`claude plugin eval`; 11 de 14 pruebas, total o parcialmente; §6b) | ~20–60 min | Sí | ✅ vigente. `tests/behavioral/run_scenarios.sh` (9 de 14, heurístico) está **obsoleto** (§6) |
 | **3. Comportamiento manual** | Las 14 pruebas de `tests/BENCHMARK.md` (TEST-00…TEST-13) | ~1–2 h | Sí | ✅ procedimiento en §4–§5 |
 | **4. Hooks y arnés endurecido** | Hooks de inicio de sesión y previos a comandos para Claude Code, Codex, Cursor y Gemini CLI, con tests sin LLM (sección 16 del nivel 1); canary por hook y N repeticiones automáticas | — | — | ✅ hooks (Fase C) · ⏳ arnés endurecido (Fase B, §9) |
 

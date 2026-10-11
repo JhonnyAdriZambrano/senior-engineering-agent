@@ -52,7 +52,9 @@ senior-engineering-agent/
 ├── SPECIFICATION.md                   este documento — contrato del agente
 ├── manifest.yaml                     identidad, versión, índice de módulos
 ├── capabilities.yaml                 capacidades abstractas → binding por runtime
+├── LICENSE                            CC BY-NC 4.0 + aclaraciones del autor
 ├── .gitignore / .env.example          higiene de Git (sin secretos)
+├── .gitattributes                     fin de línea LF (portabilidad en Windows)
 ├── .github/workflows/structural-tests.yml  CI: suite estructural en cada push/PR (sin LLM)
 │
 ├── core/                             siempre cargado, 100% portable
@@ -81,15 +83,16 @@ senior-engineering-agent/
 │   │                                     .agents/skills/ (Codex, Cursor, Gemini CLI)
 │   ├── claude-code/
 │   │   ├── CLAUDE.md
-│   │   ├── settings.hooks.json              (hooks para .claude/settings.json)
+│   │   ├── settings.hooks.json              (hooks SessionStart, PreToolUse y Stop para .claude/settings.json)
 │   │   └── agents/                          (Subagents de solo lectura)
 │   │       ├── code-reviewer-agent.md
 │   │       └── project-bootstrap-research-agent.md
 │   ├── codex/
 │   │   ├── AGENTS.md
+│   │   ├── hooks.json                       (SessionStart y PreToolUse)
 │   │   └── agents/                          (3 en .toml, sandbox read-only; el explorador, sin medir)
-│   ├── cursor/rules/00-core-always.mdc
-│   ├── gemini-cli/GEMINI.md
+│   ├── cursor/{hooks.json,rules/00-core-always.mdc}
+│   ├── gemini-cli/{GEMINI.md,settings.hooks.json}
 │   └── chatgpt-and-gems/instructions.md
 │
 ├── .claude-plugin/marketplace.json   el repo es el marketplace del plugin de Claude Code
@@ -97,6 +100,7 @@ senior-engineering-agent/
 │   ├── .claude-plugin/plugin.json    versión leída de manifest.yaml
 │   ├── skills/ agents/ core/         copias de adapters/skills/, adapters/claude-code/agents/, core/00-05
 │   ├── hooks/hooks.json              un hook SessionStart por archivo de core/ + sea_hooks.py
+│   │                                 (session-start, pre-tool y stop)
 │   ├── adapters/hooks/sea_hooks.py   misma ruta relativa que en la fuente (busca las plantillas
 │   │                                 tres niveles por encima) y project-knowledge-templates/
 │   ├── scripts/sea-python.sh         lanzador de Python (python3 | python | py -3)
@@ -114,11 +118,11 @@ senior-engineering-agent/
 ├── tests/                              NO se distribuye en el ZIP — herramienta de desarrollo
 │   ├── test_agent.py                   validación estructural automatizada
 │   ├── run_tests.sh
-│   ├── BENCHMARK.md                    14 pruebas de comportamiento con criterios PASS/FAIL
+│   ├── BENCHMARK.md                    14 pruebas de comportamiento con criterios PASS/PARTIAL/FAIL
 │   ├── GUIA_BENCHMARK.md               procedimiento para ejecutar todas las pruebas
 │   ├── results/_TEMPLATE.md            plantilla de registro de corridas
 │   ├── MANUAL_SCENARIOS.md             escenarios de verificación de comportamiento real
-│   ├── behavioral/run_scenarios.sh     arnés automatizado (9 de las 14, heurístico)
+│   ├── behavioral/run_scenarios.sh     arnés heurístico OBSOLETO (lo sustituye scripts/eval.sh)
 │   └── sandbox/setup_sandbox.sh        crea el sandbox del benchmark (estados A/B/C)
 │
 └── scripts/                            NO se distribuye en el ZIP
@@ -126,6 +130,9 @@ senior-engineering-agent/
     ├── generate_skills.py              modules/ -> SKILL.md (Claude Code y Codex)
     ├── generate_compact.py             core/compact.md -> adaptadores sin @import
     ├── generate_plugin.py              core/, adapters/, manifest.yaml -> plugin de Claude Code
+    ├── eval.sh                         evaluación automatizada con `claude plugin eval` (smoke|regression|capability|all)
+    ├── eval_report.py                  informe de una corrida de eval.sh (WITH / W/OUT / Δ)
+    ├── check_results.py                resumen de tests/results/ y estado de la puerta manual de 1.0.0
     └── new_result.sh                   registro prellenado de una corrida del benchmark
 ```
 
@@ -329,8 +336,9 @@ esa plataforma, que este manifiesto no puede anular.
 | Herramienta nativa de pregunta estructurada | Sí (`AskUserQuestion`) | No documentada | No confirmada | No documentada | No (conversacional) | No (conversacional) |
 | Acceso a terminal/filesystem real | Sí | Sí | Sí | Sí | No | No |
 | Memoria automática sin archivo | Sí (*Auto Memory*, coexiste sin conflicto — ver adaptador) | No documentada | No | Parcial (`/memory add`, con fallos reportados) | Sí (memoria de proyecto, coexiste sin conflicto — ver adaptador) | No |
-| Hooks (inicio de sesión / antes de comandos) | Sí — `SessionStart` / `PreToolUse` (`ask`) | Sí — `SessionStart` / `PreToolUse` (solo `deny`; `ask` aún no soportado) | Sí — `sessionStart` / `beforeShellExecution` (`ask`) | Sí — `SessionStart` / `BeforeTool` (`deny`) | No | No |
+| Hooks (inicio de sesión / antes de comandos / fin de turno) | Sí — `SessionStart` / `PreToolUse` (`ask`) / `Stop` (bloquea una vez si no hay validación) | Sí — `SessionStart` / `PreToolUse` (solo `deny`; `ask` aún no soportado) | Sí — `sessionStart` / `beforeShellExecution` (`ask`) | Sí — `SessionStart` / `BeforeTool` (`deny`) | No | No |
 | Protocolo de herramientas externas estandarizado | MCP (cliente y origen) | MCP (cliente) | MCP (cliente) | MCP (cliente) | MCP (apps SDK) | No |
+| **Estado de validación en uso real (1.1.0)** | **validado** | pendiente de validar (E4') | sin validar en uso real | sin validar en uso real | sin validar en uso real | sin validar en uso real |
 
 **Plugin de Claude Code (vista generada).** Distribuye el núcleo con un hook
 `SessionStart` por archivo de `core/` (matchers `startup`, `clear`, `compact`),
@@ -379,24 +387,29 @@ externo que ya no existe; las mitigaciones están en el núcleo
 
 ## 9. Próximos pasos
 
-Estado (versión 1.0.0; puerta de salida cumplida el 2026-10-09):
-instalación documentada por runtime, Skills generadas y compartidas por
+Estado (versión 1.1.0; puerta de salida hacia 1.0.0 cumplida el 2026-10-09; la
+de 1.1.0 está definida en `CHANGELOG.md`): instalación como plugin de Claude Code
+(vía principal) y documentada por runtime, Skills generadas y compartidas por
 Claude Code, Codex, Cursor y Gemini CLI, Subagents de solo lectura, tests
 estructurales, script de sandbox para el benchmark, núcleo compacto
 sincronizado con los adaptadores sin `@import`, empaquetado determinista,
-README y CHANGELOG. La etiqueta 1.0.0 se asignó al cumplir la
-"Puerta de salida hacia 1.0.0" de `CHANGELOG.md`. Lo que sigue pendiente:
+README y CHANGELOG, plugin generado con hooks `SessionStart`, `PreToolUse` y
+`Stop`, y evaluación automatizada (`scripts/eval.sh`, `claude plugin eval`). La
+etiqueta 1.0.0 se asignó al cumplir la "Puerta de salida hacia 1.0.0" de
+`CHANGELOG.md`; la 1.1.0 la crea el propietario al cumplir la "Puerta de salida
+hacia 1.1.0". Lo que sigue pendiente:
 
 1. **Validación de comportamiento real contra un runtime.** Los tests de
    `tests/test_agent.py` son estructurales (estáticos). El benchmark de
-   `tests/BENCHMARK.md` (14 pruebas) tiene un arnés automatizado parcial
-   (`tests/behavioral/run_scenarios.sh`, 9 de 14, heurístico) que requiere
-   endurecerse antes de fiarse de sus PASS. Las 14 pruebas deben
-   ejecutarse en sandbox, registrarse en `tests/results/` y quedar todas en
-   PASS (definición completa en la «Puerta de salida hacia 1.0.0» de
-   `CHANGELOG.md`). Estado a 2026-10-09 (ronda 3): 16/16 ítems de pruebas de
-   la puerta cumplidos; el detalle está en `CHANGELOG.md` («Estado de la puerta»).
-   Los registros de las corridas son locales y no se versionan.
+   `tests/BENCHMARK.md` (14 pruebas) se automatiza en 11 de 14 (total o
+   parcialmente) con `scripts/eval.sh` (`claude plugin eval`, con línea base sin
+   plugin para medir Δ); el arnés heurístico `tests/behavioral/run_scenarios.sh`
+   está obsoleto. TEST-05, 10 y 11 siguen siendo manuales. La puerta hacia 1.0.0
+   (14 pruebas en sandbox, registradas en `tests/results/`) se cumplió el
+   2026-10-09 (`CHANGELOG.md`, «Estado de la puerta»); la de 1.1.0 exige
+   regresión con pass^3 en los críticos, calibración humana y aceptación del
+   plugin en el PC. Los registros y resultados de evaluaciones son locales y no
+   se versionan.
 2. **Capa de enforcement determinista** (hooks): implementados el
    2026-09-27 el hook de inicio de sesión (conocimiento del proyecto y
    posibles instrucciones incrustadas) y el previo a comandos de shell
@@ -404,7 +417,7 @@ README y CHANGELOG. La etiqueta 1.0.0 se asignó al cumplir la
    pruebas sin LLM; solo Claude Code está validado en uso real. Pendiente:
    el hook `Stop` en Codex, Cursor y Gemini CLI (solo implementado en
    Claude Code; su equivalente está por verificar con fuente primaria), la
-   validación en uso real de los otros tres runtimes y la comparativa con y sin hooks
+   validación en uso real de los otros tres runtimes (Codex, en la etapa E4'; Cursor y Gemini CLI, sin validar) y la comparativa con y sin hooks
    (`prepare_test.sh --sin-hooks`).
 3. **Confirmar con fuente primaria** el `/init`-equivalente de Cursor (hoy
    `[INCERTIDUMBRE]` en `modules/project-knowledge-bootstrap.md` y «No

@@ -9,23 +9,26 @@ PASS/PARTIAL/FAIL y un árbol de diagnóstico de causa raíz (Modelo / Prompt
 de usar el agente para trabajo real; este documento cubre los mismos
 escenarios con más detalle narrativo por caso.
 
-**Actualización:** estos escenarios también tienen una versión
-**automatizada** en `tests/behavioral/run_scenarios.sh`, que usa el modo
-no-interactivo confirmado de Claude Code (`claude -p --output-format json`,
-`code.claude.com/docs/en/headless`). Ejecútalo desde la raíz de tu proyecto
-destino (donde ya está desplegado el adaptador) para un primer chequeo
-heurístico; usa esta guía manual para los casos donde el script marque
-FAIL/WARN, o si prefieres verificarlo tú mismo paso a paso.
+**Actualización:** estos escenarios también se evalúan de forma automatizada
+con `bash scripts/eval.sh` (`claude plugin eval`; casos en
+`plugins/claude-code/senior-engineering-agent/evals/`, criterio → grader en su
+`README.md`). El arnés anterior, `tests/behavioral/run_scenarios.sh`, está
+**obsoleto** y no sirve como evidencia.
 
-El script NO reemplaza tu criterio: hace *pattern-matching* sobre texto
-generado por un modelo, así que es un filtro de primera pasada, no un
-oráculo perfecto — revisa el log de cada escenario antes de confiar en un
-PASS o descartar un FAIL.
+La evaluación automatizada NO reemplaza tu criterio: combina patrones de texto y
+juicios de un modelo sobre texto generado por otro, así que es un filtro de
+primera pasada, no un oráculo perfecto — revisa la transcripción de cada caso
+antes de confiar en un PASS o descartar un FAIL. Usa esta guía manual para los
+casos que no se automatizan (TEST-05, 10 y 11), para los que marquen FAIL, o si
+prefieres verificarlo tú mismo paso a paso.
 
 ---
 
 Ejecuta estos escenarios después de desplegar el agente en un runtime real
-y antes de confiar en una versión nueva para trabajo real.
+y antes de confiar en una versión nueva para trabajo real. En Claude Code,
+despliégalo por el plugin (vía principal) o por la copia manual de
+`adapters/claude-code/CLAUDE.md`, y comprueba que los hooks `SessionStart`,
+`PreToolUse` y `Stop` estén activos (`/hooks`).
 
 ## Escenario 1 — Proporcionalidad de `task_classification`
 
