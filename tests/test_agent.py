@@ -20,6 +20,12 @@ import os
 import re
 import sys
 
+for _stream in (sys.stdout, sys.stderr):  # UTF-8 al redirigir la salida (en Windows sería cp1252 y «≤» fallaría con UnicodeEncodeError)
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 try:
     import yaml
 except ImportError:
@@ -703,7 +709,7 @@ def run_ss(files, rt="claude-code"):
             with open(os.path.join(d, name), "w", encoding="utf-8") as f:
                 f.write(content)
         r = subprocess.run([sys.executable, SEA, "session-start", "--runtime", rt], env=dict(os.environ, CLAUDE_PROJECT_DIR=d),
-                           input="{}", capture_output=True, text=True)
+                           input="{}", capture_output=True, text=True, encoding="utf-8", errors="replace")
         return r.returncode, _context_text(rt, r.stdout)
 
 
@@ -729,7 +735,7 @@ for rt in HOOK_CONFIGS:
 
 def run_pt(rt, payload):
     data = payload if isinstance(payload, str) else _json.dumps(payload)
-    r = subprocess.run([sys.executable, SEA, "pre-tool", "--runtime", rt], input=data, capture_output=True, text=True)
+    r = subprocess.run([sys.executable, SEA, "pre-tool", "--runtime", rt], input=data, capture_output=True, text=True, encoding="utf-8", errors="replace")
     out = r.stdout.strip()
     if not out:
         return r.returncode, None
@@ -766,8 +772,8 @@ for rt, want in EXPECTED.items():
         if rc != 0 or d is not None:
             wrong.append("intervino en una herramienta que no es de shell")
     rc, d = run_pt(rt, "esto no es JSON")
-    if rc != 0 or d is not None:
-        wrong.append("entrada inválida: debía salir con 0 sin decidir")
+    if rc != 0 or d != want:
+        wrong.append(f"entrada inválida: fail-closed, debía salir con 0 y decidir {want} (obtuvo {d})")
     check(f"pre-tool ({rt}): '{want}' solo ante operaciones destructivas (NN-08)", not wrong, "; ".join(wrong))
 
 # --- Stop (R-04): transcripciones sintéticas, sin LLM ---
@@ -796,7 +802,7 @@ def run_stop(entries, last="Listo.", active=False, raw=None, rt="claude-code", w
         if with_path:
             data["transcript_path"] = tp if raw != "<<missing>>" else os.path.join(d, "no-existe.jsonl")
         data.update(extra or {})
-        r = subprocess.run([sys.executable, SEA, "stop", "--runtime", rt], input=_json.dumps(data), capture_output=True, text=True,
+        r = subprocess.run([sys.executable, SEA, "stop", "--runtime", rt], input=_json.dumps(data), capture_output=True, text=True, encoding="utf-8", errors="replace",
                            env=dict(os.environ, **(env or {})))
         return r.returncode, (_json.loads(r.stdout) if r.stdout.strip() else None)
 
@@ -850,9 +856,92 @@ for c in ("Get-ChildItem", "Remove-Item x", "rm -r x", "Remove-Item -Force x", "
 rc, d = run_pt("claude-code", {"tool_name": "Read", "tool_input": {"command": "git reset --hard"}})
 check("PreToolUse: una herramienta que no es de shell se ignora", rc == 0 and d is None, str(d))
 _r = subprocess.run([sys.executable, SEA, "pre-tool", "--runtime", "claude-code"], input=_json.dumps(payload("claude-code", "rm -rf build")),
-                    capture_output=True, text=True)
+                    capture_output=True, text=True, encoding="utf-8", errors="replace")
 check("PreToolUse: `rm -rf` de Bash da un solo motivo (sin duplicar con el de PowerShell)",
       "borrado recursivo forzado" in _r.stdout and "PowerShell" not in _r.stdout, _r.stdout[:200])
+
+# --- Codificación en Windows (E7c, H-E7b-1/2): sea_hooks.py como subproceso con la tubería en cp1252 ---
+def run_cp1252(args, raw):
+    """Ejecuta sea_hooks.py con PYTHONIOENCODING=cp1252 (lo que hace Python en Windows con tuberías) y stdin en bytes."""
+    env = {**os.environ, "PYTHONIOENCODING": "cp1252"}
+    env.pop("PYTHONUTF8", None)
+    r = subprocess.run([sys.executable, SEA] + args, input=raw, capture_output=True, env=env)
+    return r.returncode, r.stdout, r.stderr
+
+
+def _ps_in(cmd):
+    return _json.dumps({"tool_name": "PowerShell", "tool_input": {"command": cmd}}, ensure_ascii=False).encode("utf-8")
+
+
+rc, out, _ = run_cp1252(["pre-tool", "--runtime", "claude-code"], _ps_in("git reset --hard HEAD~1"))
+try:
+    _d = _json.loads(out.decode("ascii"))
+    _why = _d["hookSpecificOutput"]["permissionDecisionReason"]
+    _ok = rc == 0 and _d["hookSpecificOutput"]["permissionDecision"] == "ask" and "operación" in _why
+except Exception as _e:
+    _ok, _why = False, f"{type(_e).__name__}: {out[:120]!r}"
+check("cp1252: `git reset --hard` -> salida JSON ASCII válida y, tras json.loads, el motivo contiene «operación» (H-E7b-1)", _ok, f"rc={rc} out={out[:160]!r}")
+
+rc, out, _ = run_cp1252(["pre-tool", "--runtime", "claude-code"], _ps_in('git reset --hard HEAD~1; echo "Índice"'))
+check("cp1252: `git reset --hard HEAD~1; echo \"Índice\"` (bytes inexistentes en cp1252) -> ask, NN-08 no se salta (H-E7b-2)",
+      rc == 0 and b'"permissionDecision": "ask"' in out and "operación" in _json.loads(out.decode("ascii"))["hookSpecificOutput"]["permissionDecisionReason"], f"rc={rc} out={out[:160]!r}")
+
+for label, raw in (("no es JSON", "esto no es JSON".encode()), ("bytes ilegibles", b"\xff\xfe\x00\x81garbage"), ("vacía", b""),
+                   ("JSON que no es un objeto", b"[1, 2]"), ("tool_input que no es un objeto", b'{"tool_name":"Bash","tool_input":5}')):
+    rc, out, _ = run_cp1252(["pre-tool", "--runtime", "claude-code"], raw)
+    try:
+        _h = _json.loads(out.decode("ascii"))["hookSpecificOutput"]
+        _ok = rc == 0 and _h["permissionDecision"] == "ask" and "NN-08: no se pudo analizar el comando; revísalo antes de autorizar" in _h["permissionDecisionReason"]
+    except Exception:
+        _ok = False
+    check(f"cp1252: entrada {label} -> ask (fail-closed), salida 0", _ok, f"rc={rc} out={out[:160]!r}")
+rc, out, _ = run_cp1252(["pre-tool", "--runtime", "claude-code"], b'{"tool_name":"Bash","tool_input":{"command":"git reset --hard \xff"}}')
+check("cp1252: comando con un byte no UTF-8 -> se decodifica con reemplazo y NN-08 sigue actuando (ask)",
+      rc == 0 and b'"permissionDecision": "ask"' in out, f"rc={rc} out={out[:160]!r}")
+rc, out, _ = run_cp1252(["pre-tool", "--runtime", "claude-code"], _ps_in('Get-ChildItem; echo "Índice"'))
+check("cp1252: comando inocuo con «Índice» -> sin salida", rc == 0 and out == b"", f"rc={rc} out={out[:160]!r}")
+
+with tempfile.TemporaryDirectory() as _proj:
+    with open(os.path.join(_proj, "PROJECT_CONTEXT.md"), "w", encoding="utf-8") as _f:
+        _f.write("# Contexto\n\nSistema de facturación «ñandú» con índice y conexión a la base de datos.\n")
+    _env = {"CLAUDE_PROJECT_DIR": _proj}
+    for _rt in ("cursor", "gemini-cli"):
+        _e = {**os.environ, "PYTHONIOENCODING": "cp1252", **_env}
+        _e.pop("PYTHONUTF8", None)
+        _r = subprocess.run([sys.executable, SEA, "session-start", "--runtime", _rt], input=b"{}", capture_output=True, env=_e)
+        try:
+            _txt = _r.stdout.decode("ascii")
+            _j = _json.loads(_txt)
+            _body = _j.get("additional_context") or _j["hookSpecificOutput"]["additionalContext"]
+            _ok = _r.returncode == 0 and "Conocimiento del proyecto" in _body and "comprobación" in _body
+        except Exception:
+            _ok = False
+        check(f"cp1252: session-start ({_rt}) -> JSON ASCII válido con el texto acentuado íntegro", _ok, f"rc={_r.returncode} out={_r.stdout[:120]!r}")
+    _e = {**os.environ, "PYTHONIOENCODING": "cp1252", **_env}
+    _e.pop("PYTHONUTF8", None)
+    _r = subprocess.run([sys.executable, SEA, "session-start", "--runtime", "claude-code"], input=b"{}", capture_output=True, env=_e)
+    try:
+        _txt = _r.stdout.decode("utf-8")  # texto plano: UTF-8 estricto, nunca cp1252
+        _ok = _r.returncode == 0 and "comprobación automática" in _txt and "\ufffd" not in _txt
+    except UnicodeDecodeError:
+        _ok = False
+    check("cp1252: session-start (claude-code, texto plano) -> UTF-8 válido con «comprobación»", _ok, f"rc={_r.returncode} out={_r.stdout[:120]!r}")
+    _tp = os.path.join(_proj, "t.jsonl")
+    with open(_tp, "w", encoding="utf-8") as _f:
+        for _e_ in ({"type": "user", "message": {"content": "edita"}},
+                    {"type": "assistant", "message": {"content": [{"type": "tool_use", "id": "t", "name": "Edit", "input": {"file_path": "índice.py"}}]}},
+                    {"type": "assistant", "message": {"content": [{"type": "text", "text": "Listo, añadí el índice."}]}}):
+            _f.write(_json.dumps(_e_, ensure_ascii=False) + "\n")
+    _e = {**os.environ, "PYTHONIOENCODING": "cp1252", **_env}
+    _e.pop("PYTHONUTF8", None)
+    _r = subprocess.run([sys.executable, SEA, "stop", "--runtime", "claude-code"], capture_output=True, env=_e,
+                        input=_json.dumps({"transcript_path": _tp, "session_id": "s-cp1252"}, ensure_ascii=False).encode("utf-8"))
+    try:
+        _j = _json.loads(_r.stdout.decode("ascii"))
+        _ok = _r.returncode == 0 and _j["decision"] == "block" and "modificaste" in _j["reason"]
+    except Exception:
+        _ok = False
+    check("cp1252: stop -> JSON ASCII válido (bloquea una edición sin validar; el motivo conserva los acentos tras json.loads)", _ok, f"rc={_r.returncode} out={_r.stdout[:160]!r}")
 
 # --- Stop (E3c): ediciones y validación por Bash, sin LLM ---
 def _bash(cmd):
@@ -961,7 +1050,7 @@ def _ss_with_state(files, session_id, state_env):
         env = dict(os.environ, CLAUDE_PROJECT_DIR=d, **state_env)
         env.pop("CLAUDE_PLUGIN_DATA", None) if "CLAUDE_PLUGIN_DATA" not in state_env else None
         r = subprocess.run([sys.executable, SEA, "session-start", "--runtime", "claude-code"], env=env,
-                           input=_json.dumps({"session_id": session_id}), capture_output=True, text=True)
+                           input=_json.dumps({"session_id": session_id}), capture_output=True, text=True, encoding="utf-8", errors="replace")
         return r.returncode, r.stdout
 
 
@@ -1502,7 +1591,7 @@ _GIT = _shutil.which("git")
 if not _GIT:
     skip("Auditoría documental (marcadores y árbol del README)", "git no disponible en PATH")
 else:
-    _tracked = subprocess.run([_GIT, "ls-files", "-z"], capture_output=True, text=True, cwd=ROOT).stdout.split("\0")
+    _tracked = subprocess.run([_GIT, "ls-files", "-z"], capture_output=True, text=True, encoding="utf-8", errors="replace", cwd=ROOT).stdout.split("\0")
     _tracked = [t for t in _tracked if t and os.path.isfile(os.path.join(ROOT, t))]
     _PEND = re.compile(r"\b(?:TODO|FIXME|TBD|XXX)\b|motivo breve|puede añadir uno aquí")
     _hits = []
@@ -1549,6 +1638,25 @@ else:
 
 check(".gitignore ignora plugins/**/evals/results/", "plugins/**/evals/results/" in read(".gitignore"), "falta la regla")
 check("CI ejecuta generate_plugin.py --check", "generate_plugin.py --check" in read(".github/workflows/structural-tests.yml"), "falta en structural-tests.yml")
+
+# Guarda de codificación (E7c): la salida de sea_hooks.py y del lanzador es UTF-8; con text=True sin encoding, subprocess la decodifica
+# con la codificación local (cp1252 en Windows) y la suite ve «comprobaciÃ³n». Se revisa el código fuente de esta misma suite.
+import ast as _ast
+_src = open(os.path.abspath(__file__), encoding="utf-8").read()
+_hook_calls, _bad_enc = 0, []
+for _n in _ast.walk(_ast.parse(_src)):
+    if isinstance(_n, _ast.Call) and isinstance(_n.func, _ast.Attribute) and _n.func.attr in ("run", "check_output", "Popen") \
+            and getattr(_n.func.value, "id", "") == "subprocess":
+        _seg = _ast.get_source_segment(_src, _n) or ""
+        if not re.search(r"\bSEA\b|\bLAUNCHER\b|sea_hooks|sea-python", _seg):
+            continue
+        _hook_calls += 1
+        _kw = {k.arg: k.value for k in _n.keywords}
+        _text = any(isinstance(_kw.get(k), _ast.Constant) and _kw[k].value is True for k in ("text", "universal_newlines"))
+        if _text and "encoding" not in _kw:
+            _bad_enc.append(f"línea {_n.lineno}")
+check("Guarda: toda llamada de la suite a sea_hooks.py o al lanzador con text=True declara encoding explícito (UTF-8)",
+      _hook_calls >= 8 and not _bad_enc, f"{_hook_calls} llamadas revisadas; text=True sin encoding en: {', '.join(_bad_enc)}")
 
 # ---------------------------------------------------------------------------
 print(f"\n{'='*60}\nResultado: {PASSED} pruebas OK, {len(FAILURES)} fallidas, {len(SKIPPED)} omitidas\n{'='*60}")

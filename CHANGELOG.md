@@ -22,7 +22,44 @@ código ejecutable), MAJOR/MINOR/PATCH se interpretan así:
 cambios de comportamiento. La etiqueta `1.0.0` se asignó el 2026-10-09 al
 cumplirse la *Puerta de salida hacia 1.0.0* (más abajo).
 
-## [1.1.1] — 2026-10-11
+## [1.1.2] — 2026-10-11
+
+Versión PATCH: parche de codificación en Windows. No cambia ninguna regla NN ni `core/`/`modules/`. **1.1.1 no se etiquetó; la sustituye 1.1.2.** La etiqueta
+`v1.1.2` la crea el propietario al cumplir la *Puerta de salida hacia 1.1.2* (más abajo); este cambio no crea etiquetas.
+
+### Corregido
+
+- **H-E7b-1 — el motivo del diálogo NN-08 llegaba ilegible («operaci�n … �»)** (verificado en el PC con Windows y reproducido con `PYTHONIOENCODING=cp1252`). Causa:
+  en Windows Python escribe stdout en cp1252 cuando es una tubería y Claude Code lee UTF-8. `sea_hooks.py` reconfigura stdout y stderr a UTF-8 al arrancar y toda
+  la salida JSON es ASCII pura (`ensure_ascii=True`, defensa en profundidad); el lanzador `sea-python.sh` exporta `PYTHONUTF8=1` y `PYTHONIOENCODING=utf-8`.
+- **H-E7b-2 (seguridad) — NN-08 se saltaba en silencio ante un comando con caracteres no representables en cp1252** (p. ej. `git reset --hard HEAD~1; echo "Índice"`).
+  Causa: `read_input()` leía stdin en cp1252, la decodificación fallaba, la excepción se tragaba y `pre-tool` salía con 0 sin salida. Ahora stdin se lee como bytes y se
+  decodifica como UTF-8 (`errors="replace"`), y NN-08 es **fail-closed**: si `pre-tool` no puede leer o analizar la entrada (vacía, no JSON, no es un objeto, o falla el
+  análisis) emite `ask` con «NN-08: no se pudo analizar el comando; revísalo antes de autorizar» (Claude Code y Cursor); Codex y Gemini CLI, que solo admiten `deny`,
+  reciben `deny` con el mismo motivo (el mismo criterio que ya aplican ante una operación destructiva). El hook sigue saliendo siempre con 0. `stop` y `session-start`
+  no cambian de criterio.
+- `tests/test_agent.py` reconfigura stdout/stderr a UTF-8 al inicio (fallaba con `UnicodeEncodeError` en Windows al redirigir la salida, por el carácter «≤»).
+
+### Añadido
+
+- **CI en Windows:** `.github/workflows/structural-tests.yml` ejecuta en `windows-latest` (Python 3.12, pyyaml) `python tests/test_agent.py` y
+  `bash tests/acceptance/hooks_practice.sh`; el job de Linux ejecuta también `hooks_practice.sh`. Sin secretos y con permisos de solo lectura. Las pruebas que no
+  aplican en Windows se omiten de forma explícita (`[SKIP]` con motivo), nunca en silencio.
+- **Aceptación práctica sin coste de modelo:** `tests/acceptance/hooks_practice.sh` ejecuta el lanzador real del plugin con el intérprete real sobre cinco entradas del
+  hook (Bash y PowerShell) y valida UTF-8/JSON y el motivo «operación». Obligatoria antes de cada etiqueta (`tests/GUIA_BENCHMARK.md`, «Aceptación práctica»).
+- Pruebas con la tubería en cp1252 (subproceso con `PYTHONIOENCODING=cp1252`) para `pre-tool`, `session-start` y `stop`.
+
+### Puerta de salida hacia 1.1.2
+
+La etiqueta `v1.1.2` solo se asigna cuando se cumplen TODOS estos puntos:
+
+1. Suite estructural, los tres `--check` (`generate_skills.py`, `generate_compact.py`, `generate_plugin.py`) y `claude plugin validate --strict` en verde.
+2. CI en verde en Linux y Windows sobre el commit a etiquetar.
+3. `scripts/eval.sh smoke` con los casos críticos en pass^3.
+4. Aceptación práctica en el PC del usuario (Windows): `bash tests/acceptance/hooks_practice.sh` en verde y el checklist manual (a)(b)(c) en Claude Code
+   (`tests/GUIA_BENCHMARK.md`, «Aceptación práctica»).
+
+## [1.1.1] — 2026-10-11 (no etiquetada; sustituida por 1.1.2)
 
 Versión PATCH: corrección de una barrera de la puerta de 1.1.0. No cambia ninguna regla NN ni `core/`/`modules/`. La etiqueta `v1.1.1` la crea el
 propietario al cumplir la *Puerta de salida hacia 1.1.1* (más abajo); este cambio no crea etiquetas.

@@ -1,7 +1,8 @@
 # CI del repositorio de la especificación: SOLO la suite estructural (sin LLM).
 # El benchmark de comportamiento (TEST-00…TEST-13) es manual, en sandbox
 # (tests/GUIA_BENCHMARK.md), porque requiere una cuenta de Claude Code y
-# criterio humano. Sin secretos: permisos de solo lectura.
+# criterio humano. Sin secretos: permisos de solo lectura. Dos jobs: Linux (suite, --check
+# y aceptación práctica de hooks) y Windows (suite y aceptación práctica con Git Bash).
 name: structural-tests
 
 on:
@@ -40,7 +41,7 @@ jobs:
 
       - name: Sintaxis de los scripts bash
         run: |
-          for f in scripts/*.sh tests/*.sh tests/behavioral/*.sh tests/sandbox/*.sh; do
+          for f in scripts/*.sh tests/*.sh tests/acceptance/*.sh tests/behavioral/*.sh tests/sandbox/*.sh; do
             bash -n "$f"
           done
 
@@ -49,3 +50,29 @@ jobs:
 
       - name: Suite estructural (incluye build determinista del ZIP)
         run: python3 tests/test_agent.py
+
+      - name: Aceptación práctica de hooks (lanzador real, sin LLM)
+        run: bash tests/acceptance/hooks_practice.sh
+
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: bash   # Git Bash, el mismo que usa Claude Code en Windows para los hooks
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Dependencias
+        run: python -m pip install --upgrade pip pyyaml
+
+      # Las pruebas que no aplican en Windows se OMITEN con [SKIP] y motivo (visible en el resumen), nunca en silencio.
+      - name: Suite estructural
+        run: python tests/test_agent.py
+
+      - name: Aceptación práctica de hooks (lanzador real, sin LLM)
+        run: bash tests/acceptance/hooks_practice.sh

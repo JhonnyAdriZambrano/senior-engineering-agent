@@ -22,6 +22,11 @@ warn() {
 
 try() { "$@" -c "import sys" >/dev/null 2>&1; }
 
+# Codificación (H-E7b-1/2): en Windows, Python usa cp1252 en las tuberías, pero Claude Code
+# envía y lee UTF-8. Se fuerza UTF-8 antes de invocar al intérprete.
+export PYTHONUTF8=1
+export PYTHONIOENCODING=utf-8
+
 if try python3; then
   python3 "$@"
 elif try python; then

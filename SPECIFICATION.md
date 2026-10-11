@@ -55,7 +55,7 @@ senior-engineering-agent/
 ├── LICENSE                            CC BY-NC 4.0 + aclaraciones del autor
 ├── .gitignore / .env.example          higiene de Git (sin secretos)
 ├── .gitattributes                     fin de línea LF (portabilidad en Windows)
-├── .github/workflows/structural-tests.yml  CI: suite estructural en cada push/PR (sin LLM)
+├── .github/workflows/structural-tests.yml  CI: suite estructural en cada push/PR, en Linux y Windows (sin LLM)
 │
 ├── core/                             siempre cargado, 100% portable
 │   ├── 00-identity.md
@@ -387,8 +387,8 @@ externo que ya no existe; las mitigaciones están en el núcleo
 
 ## 9. Próximos pasos
 
-Estado (versión 1.1.1; puerta de salida hacia 1.0.0 cumplida el 2026-10-09; la
-de 1.1.0 y la de 1.1.1 están definidas en `CHANGELOG.md`): instalación como plugin de Claude Code
+Estado (versión 1.1.2; puerta de salida hacia 1.0.0 cumplida el 2026-10-09; la
+de 1.1.0 y la de 1.1.2 están definidas en `CHANGELOG.md`; 1.1.1 no se etiquetó): instalación como plugin de Claude Code
 (vía principal) y documentada por runtime, Skills generadas y compartidas por
 Claude Code, Codex, Cursor y Gemini CLI, Subagents de solo lectura, tests
 estructurales, script de sandbox para el benchmark, núcleo compacto

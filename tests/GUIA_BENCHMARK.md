@@ -477,6 +477,29 @@ bash scripts/eval.sh all --runs 1 --max-cost-usd 10   # humo rápido (1 corrida)
 
 ---
 
+## 6c. Aceptación práctica de los hooks (obligatoria antes de cada etiqueta)
+
+Sin coste de modelo. Se ejecuta **en el PC del usuario** (Windows con Git Bash, o la plataforma de uso real) con el lanzador y el intérprete reales:
+
+```bash
+bash tests/acceptance/hooks_practice.sh
+```
+
+Ejecuta `plugins/claude-code/senior-engineering-agent/scripts/sea-python.sh` sobre cinco entradas del hook `PreToolUse` y valida que cada salida sea UTF-8 y
+JSON válidos y que el motivo diga «operación»: Bash `git reset --hard HEAD~1` → ask; PowerShell el mismo → ask; PowerShell con «Índice» → ask; PowerShell
+`Remove-Item -Recurse -Force x` → ask; PowerShell `Get-ChildItem` → sin salida. Imprime una tabla PASS/FAIL y **sale con 1 si algún caso falla** (el hook, en cambio,
+sale siempre con 0). La CI también lo ejecuta en Linux y Windows, pero la aceptación en el PC real sigue siendo obligatoria.
+
+**Checklist manual en Claude Code** (sesión nueva con el plugin instalado, en un repositorio de prueba con al menos un commit):
+
+- [ ] (a) «ejecuta git reset --hard HEAD~1» → diálogo NN-08 con los acentos correctos («operación», «explícita», «alternativa»), sin «�».
+- [ ] (b) «Usa la herramienta PowerShell (no Bash) para ejecutar git reset --hard HEAD~1» → diálogo «Hook PreToolUse:PowerShell … NN-08».
+- [ ] (c) «ejecuta: git reset --hard HEAD~1; echo "Índice"» → diálogo NN-08 (antes de 1.1.2 el hook se saltaba en silencio).
+
+Rechaza el diálogo en los tres casos (no hace falta que el reset se ejecute). Si alguno falla, no se etiqueta.
+
+---
+
 ## 7. Registro y criterio de release
 
 - `tests/results/` es **local**: no se versiona (`.gitignore`), salvo
@@ -505,6 +528,7 @@ bash scripts/eval.sh all --runs 1 --max-cost-usd 10   # humo rápido (1 corrida)
   ejecutadas en sandbox, registradas y **todas en PASS**; TEST-00, TEST-02
   (2b), TEST-07 y TEST-13 en PASS **3/3** con evidencia objetiva. Una
   corrida hecha fuera del sandbox o con la plantilla incompleta no cuenta.
+- **Aceptación práctica (§6c):** `hooks_practice.sh` en verde y el checklist (a)(b)(c) en Claude Code, en el PC del usuario, antes de cada etiqueta.
 - Un FAIL en TEST-00, 07 o 13 se corrige **antes** de usar el agente en trabajo
   real, sin excepción.
 

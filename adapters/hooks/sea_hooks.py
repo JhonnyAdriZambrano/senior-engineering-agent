@@ -16,6 +16,13 @@ session-start — comprueba si PROJECT_CONTEXT.md/ARCHITECTURE.md faltan o solo
 pre-tool — ante un comando de shell potencialmente destructivo (NN-08) exige
   confirmación humana ("ask") donde el runtime lo admite; donde no (Codex,
   Gemini CLI), lo bloquea ("deny") y explica al agente qué hacer.
+  Fail-closed (H-E7b-2): si la entrada de pre-tool no se puede leer o analizar (no es JSON, o falla el análisis), no se
+  sale en silencio: se emite "ask" (Claude Code, Cursor) o "deny" (Codex y Gemini CLI, que solo admiten deny; el mismo
+  criterio que ante una operación destructiva) con el motivo «NN-08: no se pudo analizar el comando; revísalo antes de
+  autorizar». Stop y session-start no cambian de criterio (sin entrada analizable: permitir / sin contexto).
+Codificación (H-E7b-1/2): stdin se lee como bytes y se decodifica como UTF-8; stdout y stderr se reconfiguran a UTF-8;
+  toda la salida JSON es ASCII puro (ensure_ascii=True), válida en cualquier codificación de la tubería. La salida de
+  texto plano (SessionStart de Claude Code y Codex) sale en UTF-8 gracias a la reconfiguración.
 stop — (solo Claude Code) bloquea UNA vez (respeta stop_hook_active; ante cualquier error permite terminar):
   1. Edición sin validar: en el turno hubo Edit/Write/MultiEdit o una edición por Bash (sed -i, perl -i,
      redirección > / >>, tee, cat > archivo; sin contar /dev/null) y no hay evidencia de validación (comando de test,
@@ -93,12 +100,36 @@ SHELL_TOOLS = {"Bash", "PowerShell", "Shell", "run_shell_command"}  # PowerShell
 
 
 # ----------------------------------------------------------------- entrada
+def use_utf8_streams():
+    """stdout y stderr en UTF-8 (H-E7b-1): en Windows, Python los codifica con la página de códigos local (cp1252)
+    cuando son tuberías, y Claude Code lee UTF-8. Si el objeto no admite reconfigure(), se deja como está: la salida
+    JSON es ASCII pura (ensure_ascii=True) y no depende de la codificación."""
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
+
+
 def read_input():
+    """El JSON de stdin como dict; {} si falta; None si no se pudo leer o analizar (el llamador decide qué hacer).
+    stdin se lee como BYTES y se decodifica SIEMPRE como UTF-8 (H-E7b-2): sys.stdin.read() usaría cp1252 en Windows
+    y fallaría con comandos cuyo UTF-8 contiene bytes inexistentes en cp1252 («Í» = C3 8D)."""
     try:
-        raw = sys.stdin.read() if not sys.stdin.isatty() else ""
-        return json.loads(raw) if raw.strip() else {}
+        if sys.stdin.isatty():
+            return {}
+        stream = getattr(sys.stdin, "buffer", None)
+        raw = stream.read().decode("utf-8", errors="replace") if stream is not None else sys.stdin.read()
+        raw = raw.lstrip("\ufeff")
+        data = json.loads(raw) if raw.strip() else {}
+        return data if isinstance(data, dict) else None
     except Exception:
-        return {}
+        return None
+
+
+def emit(obj):
+    """Salida JSON de los hooks: ASCII puro (\\uXXXX), válido en cualquier codificación de la tubería."""
+    print(json.dumps(obj, ensure_ascii=True))
 
 
 def project_root(data):
@@ -239,9 +270,9 @@ def session_start(runtime, data):
     if runtime in ("claude-code", "codex"):
         print(text)
     elif runtime == "cursor":
-        print(json.dumps({"additional_context": text}, ensure_ascii=False))
+        emit({"additional_context": text})
     else:  # gemini-cli: solo JSON en stdout
-        print(json.dumps({"hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext": text}}, ensure_ascii=False))
+        emit({"hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext": text}})
 
 
 # --------------------------------------------------------------- pre-tool
@@ -263,12 +294,20 @@ def pre_tool(runtime, data):
     if not reasons:
         return
     what = ", ".join(reasons)
+    _decide(runtime, what)
+
+
+def _decide(runtime, what, unparsed=False):
+    """Emite la decisión de NN-08 en el formato del runtime: ask donde se admite (Claude Code, Cursor) y deny donde
+    no (Codex, Gemini CLI). `unparsed`: la entrada no se pudo leer o analizar (fail-closed, H-E7b-2)."""
     ask_msg = (f"NN-08 (Senior Engineering Agent): operación potencialmente destructiva — {what}. Requiere "
                "autorización explícita del usuario; antes debe ofrecerse una alternativa no destructiva "
                "(rama de respaldo, git revert, copia previa).")
     deny_msg = (f"NN-08 (Senior Engineering Agent): bloqueado — {what}. Este runtime no permite pedir "
                 "confirmación desde el hook: no reintentes. Explica el riesgo al usuario, ofrece una alternativa "
                 "no destructiva y, si aun así lo autoriza, dale el comando para que lo ejecute él.")
+    if unparsed:
+        ask_msg = deny_msg = "NN-08: no se pudo analizar el comando; revísalo antes de autorizar"
     if runtime == "claude-code":
         out = {"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "ask", "permissionDecisionReason": ask_msg}}
     elif runtime == "codex":
@@ -277,7 +316,14 @@ def pre_tool(runtime, data):
         out = {"permission": "ask", "user_message": ask_msg, "agent_message": ask_msg}
     else:
         out = {"decision": "deny", "reason": deny_msg}
-    print(json.dumps(out, ensure_ascii=False))
+    emit(out)
+
+
+def pre_tool_unparsed(runtime):
+    """Fail-closed de NN-08: sin poder analizar el comando no se puede descartar que sea destructivo, así que se
+    pide confirmación (Claude Code, Cursor) o se bloquea (Codex y Gemini CLI, que solo admiten deny: el mismo
+    criterio que ante una operación destructiva). El hook sale igualmente con 0."""
+    _decide(runtime, "", unparsed=True)
 
 
 # ------------------------------------------------------------------- stop
@@ -611,7 +657,7 @@ def stop(runtime, data):
         return
     reasons.append("En tu mensaje final conserva los hallazgos fuera de alcance etiquetados y cualquier aviso pendiente. "
                    "Este aviso se muestra una sola vez.")
-    print(json.dumps({"decision": "block", "reason": "Senior Engineering Agent: " + " ".join(reasons)}, ensure_ascii=False))
+    emit({"decision": "block", "reason": "Senior Engineering Agent: " + " ".join(reasons)})
 
 
 def main(argv):
@@ -619,13 +665,23 @@ def main(argv):
         print("Uso: sea_hooks.py <session-start|pre-tool|stop> --runtime <" + "|".join(RUNTIMES) + ">", file=sys.stderr)
         return
     data = read_input()
+    if data is None or (not data and argv[0] == "pre-tool"):  # pre-tool sin entrada tampoco es analizable
+        if argv[0] == "pre-tool":
+            pre_tool_unparsed(argv[2])
+        return  # session-start y stop: sin entrada analizable se comportan como antes (sin contexto / permitir)
     {"session-start": session_start, "pre-tool": pre_tool, "stop": stop}[argv[0]](argv[2], data)
 
 
 if __name__ == "__main__":
     try:
+        use_utf8_streams()
         main(sys.argv[1:])
     except Exception as exc:  # nunca romper la sesión del runtime
+        if sys.argv[1:2] == ["pre-tool"] and sys.argv[2:3] == ["--runtime"] and sys.argv[3:4] and sys.argv[3] in RUNTIMES:
+            try:  # fail-closed: un fallo al analizar el comando no puede saltarse NN-08 en silencio
+                pre_tool_unparsed(sys.argv[3])
+            except Exception:
+                pass
         if sys.argv[1:2] == ["session-start"] and sys.argv[3:4] in (["claude-code"], ["codex"]):
             print(f"[Senior Engineering Agent] El hook no pudo completar la comprobación ({type(exc).__name__}); "
                   "aplica la comprobación de core/00-identity.md manualmente.")

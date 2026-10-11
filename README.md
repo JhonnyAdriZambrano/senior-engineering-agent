@@ -61,7 +61,7 @@ senior-engineering-agent/
 ├── .env.example                 documenta que el proyecto no requiere variables propias
 ├── .github/
 │   └── workflows/
-│       └── structural-tests.yml CI: suite estructural y comprobaciones --check (sin LLM)
+│       └── structural-tests.yml CI: suite estructural y --check en Linux y Windows (sin LLM)
 ├── .claude-plugin/
 │   └── marketplace.json         el repo es el marketplace del plugin de Claude Code
 ├── core/                        6 archivos siempre cargados + compact.md
@@ -107,6 +107,7 @@ senior-engineering-agent/
 │   ├── BENCHMARK.md             14 pruebas formales, criterios PASS/PARTIAL/FAIL
 │   ├── GUIA_BENCHMARK.md        CÓMO ejecutar todas las pruebas (empieza aquí)
 │   ├── MANUAL_SCENARIOS.md      escenarios narrativos de verificación manual
+│   ├── acceptance/              hooks_practice.sh: aceptación práctica de los hooks con el lanzador real (sin LLM)
 │   ├── behavioral/              arnés heurístico run_scenarios.sh (OBSOLETO: lo sustituye scripts/eval.sh)
 │   ├── sandbox/                 crea el sandbox del benchmark (estados A/B/C)
 │   └── results/                 registros de corridas (plantilla _TEMPLATE.md)
@@ -150,7 +151,9 @@ El plugin trae las 7 Skills, los 2 Subagents de solo lectura, el núcleo
 `core/`) y los hooks deterministas (`SessionStart`, `PreToolUse` y `Stop`); no hace
 falta tocar `CLAUDE.md` ni copiar nada. Es una **vista generada** (`plugins/claude-code/senior-engineering-agent/`,
 `python3 scripts/generate_plugin.py`), no una segunda fuente de verdad. Los
-hooks de Python usan un lanzador que prueba `python3`, `python` y `py -3`.
+hooks de Python usan un lanzador que prueba `python3`, `python` y `py -3`
+y fuerza UTF-8 (`PYTHONUTF8=1`, `PYTHONIOENCODING=utf-8`); los hooks leen stdin como UTF-8 y
+emiten JSON ASCII, y NN-08 pide confirmación (fail-closed) si no puede analizar el comando.
 En Windows se recomienda Git Bash para los hooks. Los hooks de un mismo evento
 corren en paralelo y la documentación no garantiza su orden: cada parte del
 núcleo lleva la cabecera «[Núcleo SEA — parte X de 6 (orden canónico 00→05)]».
@@ -317,8 +320,9 @@ Este repositorio es la fuente de verdad; el ZIP es un artefacto de
 distribución generado a partir de él (ver `scripts/build_zip.sh`).
 `.gitignore` excluye secretos, artefactos de build y configuración local de
 runtimes. La CI (`.github/workflows/structural-tests.yml`) ejecuta en cada
-push y pull request a `main` la suite estructural y las comprobaciones
-`--check` de las vistas derivadas, sin secretos ni llamadas a modelos; el
+push y pull request a `main`, en Linux y en Windows, la suite estructural, la
+aceptación práctica de hooks (`tests/acceptance/hooks_practice.sh`) y, en Linux,
+las comprobaciones `--check` de las vistas derivadas, sin secretos ni llamadas a modelos; el
 benchmark de comportamiento sigue siendo manual (`tests/GUIA_BENCHMARK.md`). `.env.example` documenta que este proyecto en sí no requiere
 variables de entorno propias (ver el archivo para el detalle sobre
 servidores MCP en despliegues reales).
