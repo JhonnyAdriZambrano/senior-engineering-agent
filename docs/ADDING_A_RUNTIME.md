@@ -7,7 +7,7 @@ propio caso de uso), esto es lo mínimo que necesitas resolver.
 
 ## 1. Capacidades mínimas que tu runtime debe resolver (o declarar ausentes)
 
-Tu adaptador debe decidir, para cada una de estas 7 capacidades abstractas
+Tu adaptador debe decidir, para cada una de estas 8 capacidades abstractas
 declaradas en `capabilities.yaml`, uno de tres estados — nunca dejarla sin
 mencionar:
 
@@ -20,9 +20,10 @@ mencionar:
 | `GIT` | ¿Puede ejecutar git (normalmente vía TERMINAL)? | `SIN BINDING` |
 | `WEB_DOCUMENTATION` | ¿Es cliente MCP? ¿Tiene búsqueda web nativa? | `SIN BINDING` |
 | `EXTERNAL_TOOLS` | ¿Es cliente MCP para conectores externos? | `SIN BINDING` |
+| `VISUAL_INSPECTION` | ¿Puede renderizar y ver la interfaz (captura, navegador)? | `SIN BINDING` — no afirmar verificación visual |
 
 Añade una fila nueva (con el nombre de tu runtime) a los `bindings` de cada
-una de las 7 entradas en `capabilities.yaml`. **No** crees un archivo de
+una de las 8 entradas en `capabilities.yaml`. **No** crees un archivo de
 bindings separado para tu adaptador — `capabilities.yaml` es la única
 fuente de verdad (ver la lección aprendida de la auditoría: duplicar
 bindings en un segundo archivo los desincroniza).
@@ -46,7 +47,7 @@ bindings en un segundo archivo los desincroniza).
 
 ## 4. Checklist de entrega de un adaptador nuevo
 
-- [ ] Fila añadida en `capabilities.yaml` para las 7 capacidades (o `SIN BINDING` explícito).
+- [ ] Fila añadida en `capabilities.yaml` para las 8 capacidades (o `SIN BINDING` explícito).
 - [ ] Mecanismo de carga del CORE elegido y documentado (sección 2).
 - [ ] Mecanismo de activación de `modules/` elegido y documentado (sección 3).
 - [ ] Instrucción explícita de **dónde colocar físicamente los archivos** dentro de un proyecto destino (el hallazgo más importante de la auditoría: nunca asumas que esto es obvio).

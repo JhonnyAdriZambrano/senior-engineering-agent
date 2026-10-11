@@ -7,6 +7,7 @@ solo cambia el formato de entrada/salida; las reglas son las mismas.
 Uso (lo invoca la configuración de hooks de cada adaptador):
   python3 sea_hooks.py session-start --runtime <claude-code|codex|cursor|gemini-cli>
   python3 sea_hooks.py pre-tool      --runtime <claude-code|codex|cursor|gemini-cli>
+  python3 sea_hooks.py stop          --runtime claude-code
 
 session-start — comprueba si PROJECT_CONTEXT.md/ARCHITECTURE.md faltan o solo
   tienen la plantilla (causa MECANISMO de TEST-02) y marca líneas con forma de
@@ -15,8 +16,15 @@ session-start — comprueba si PROJECT_CONTEXT.md/ARCHITECTURE.md faltan o solo
 pre-tool — ante un comando de shell potencialmente destructivo (NN-08) exige
   confirmación humana ("ask") donde el runtime lo admite; donde no (Codex,
   Gemini CLI), lo bloquea ("deny") y explica al agente qué hacer.
+stop — (solo Claude Code) si en el turno hubo Edit/Write/MultiEdit y no hay
+  evidencia de validación (comando de test, build o lint en Bash) ni una
+  declaración explícita de «no pude validar», bloquea UNA vez con un motivo
+  claro. Respeta stop_hook_active (si ya continúa por un Stop previo, permite
+  terminar) y ante cualquier error permite terminar (sale con 0).
+  Codex, Cursor y Gemini CLI: NO se añade Stop; pendiente de verificar su
+  equivalente con fuente primaria.
 
-Formatos (documentación oficial, consultada 2026-09-27):
+Formatos (documentación oficial, consultada 2026-09-27; Stop: 2026-10-11):
   Claude Code  code.claude.com/docs/en/hooks   SessionStart: texto plano en stdout;
                PreToolUse: hookSpecificOutput.permissionDecision (ask|deny).
   Codex        learn.chatgpt.com/docs/hooks    SessionStart: texto plano en stdout;
@@ -25,6 +33,14 @@ Formatos (documentación oficial, consultada 2026-09-27):
                beforeShellExecution: {"permission": allow|deny|ask, "user_message", "agent_message"}.
   Gemini CLI   geminicli.com/docs/hooks        SessionStart: hookSpecificOutput.additionalContext;
                BeforeTool: {"decision": "deny", "reason"}.
+Stop (Claude Code) — https://code.claude.com/docs/en/hooks (secciones «Stop input»
+  y «Stop decision control»): entrada con transcript_path, stop_hook_active y
+  last_assistant_message; {"decision": "block", "reason": "..."} impide terminar.
+  Esa página no documenta el formato del transcript: [INFERENCIA] se asume JSONL con
+  líneas {"type": "user"|"assistant", "message": {"content": str | [bloques]}} y bloques
+  {"type": "tool_use", "name", "input"}; una línea «user» sin bloque tool_result es un
+  mensaje real del usuario y marca el inicio del turno. Si el formato difiere, el hook
+  degrada a permitir (nunca bloquea por error).
 Solo biblioteca estándar (Python 3.8+). Nunca rompe la sesión: sale con 0.
 """
 import json
@@ -200,12 +216,84 @@ def pre_tool(runtime, data):
     print(json.dumps(out, ensure_ascii=False))
 
 
+# ------------------------------------------------------------------- stop
+EDIT_TOOLS = {"Edit", "Write", "MultiEdit"}
+VALIDATION = re.compile(
+    r"\b(pytest|unittest|jest|vitest|mocha|tox|nox|rspec|phpunit|tsc|eslint|ruff|flake8|pylint|mypy|pyright|shellcheck"
+    r"|cargo\s+(test|build|check|clippy)|go\s+(test|build|vet)"
+    r"|(npm|yarn|pnpm|bun)\s+(run\s+)?(test|build|lint|check|typecheck)"
+    r"|make\s+(test|build|lint|check)|(mvn|gradlew?|dotnet)\b[^\n;&|]*\b(test|build|verify|check)"
+    r"|test_\w+\.py|run_tests\.sh)\b|\s--check\b",
+    re.I,
+)
+CANNOT_VALIDATE = re.compile(
+    r"(no pude validar|no he podido validar|no fue posible validar|no se pudo validar|sin validar"
+    r"|(could not|couldn't|was unable to|were unable to|unable to) (validate|verify|test|run (the )?tests))",
+    re.I,
+)
+
+
+def _blocks(entry):
+    content = (entry.get("message") or {}).get("content")
+    if isinstance(content, str):
+        return [{"type": "text", "text": content}]
+    return [b for b in content if isinstance(b, dict)] if isinstance(content, list) else []
+
+
+def turn_evidence(transcript_path):
+    """Devuelve (hubo_edicion, hubo_validacion, texto_del_asistente) del último turno."""
+    entries = []
+    with open(os.path.expanduser(transcript_path), encoding="utf-8", errors="replace") as f:
+        for line in f:
+            if line.strip():
+                entries.append(json.loads(line))
+    start = 0
+    for i, e in enumerate(entries):  # el turno empieza en el último mensaje real del usuario
+        if e.get("type") == "user" and not e.get("isMeta"):
+            bl = _blocks(e)
+            if bl and not any(b.get("type") == "tool_result" for b in bl):
+                start = i
+    edited = validated = False
+    texts = []
+    for e in entries[start + 1:]:
+        if e.get("type") != "assistant":
+            continue
+        for b in _blocks(e):
+            if b.get("type") == "text":
+                texts.append(str(b.get("text", "")))
+            elif b.get("type") == "tool_use":
+                inp = b.get("input") or {}
+                if b.get("name") in EDIT_TOOLS:
+                    edited = True
+                elif b.get("name") in SHELL_TOOLS and VALIDATION.search(str(inp.get("command", ""))):
+                    validated = True
+    return edited, validated, "\n".join(texts)
+
+
+def stop(runtime, data):
+    if runtime != "claude-code" or data.get("stop_hook_active"):
+        return  # un solo bloqueo por parada; otros runtimes: sin Stop (pendiente de verificar)
+    path = data.get("transcript_path")
+    if not path:
+        return
+    edited, validated, text = turn_evidence(path)
+    if not edited or validated:
+        return
+    if CANNOT_VALIDATE.search(str(data.get("last_assistant_message") or "") + "\n" + text):
+        return
+    print(json.dumps({"decision": "block", "reason": (
+        "Senior Engineering Agent: en este turno modificaste archivos (Edit/Write/MultiEdit) pero no hay evidencia "
+        "de validación (comando de test, build o lint en Bash). Antes de terminar, ejecuta la validación "
+        "del proyecto y reporta su resultado; si no puedes hacerlo, di explícitamente «no pude validar» y por qué. "
+        "Este aviso se muestra una sola vez.")}, ensure_ascii=False))
+
+
 def main(argv):
-    if len(argv) < 3 or argv[0] not in ("session-start", "pre-tool") or argv[1] != "--runtime" or argv[2] not in RUNTIMES:
-        print("Uso: sea_hooks.py <session-start|pre-tool> --runtime <" + "|".join(RUNTIMES) + ">", file=sys.stderr)
+    if len(argv) < 3 or argv[0] not in ("session-start", "pre-tool", "stop") or argv[1] != "--runtime" or argv[2] not in RUNTIMES:
+        print("Uso: sea_hooks.py <session-start|pre-tool|stop> --runtime <" + "|".join(RUNTIMES) + ">", file=sys.stderr)
         return
     data = read_input()
-    (session_start if argv[0] == "session-start" else pre_tool)(argv[2], data)
+    {"session-start": session_start, "pre-tool": pre_tool, "stop": stop}[argv[0]](argv[2], data)
 
 
 if __name__ == "__main__":

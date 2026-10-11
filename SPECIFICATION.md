@@ -380,14 +380,16 @@ README y CHANGELOG. La etiqueta 1.0.0 se asignó al cumplir la
    posibles instrucciones incrustadas) y el previo a comandos de shell
    (NN-08), con lógica común para Claude Code, Codex, Cursor y Gemini CLI y
    pruebas sin LLM; solo Claude Code está validado en uso real. Pendiente:
-   `Stop` (exigir validación antes de terminar), la validación en uso real
-   de los otros tres runtimes y la comparativa con y sin hooks
+   el hook `Stop` en Codex, Cursor y Gemini CLI (solo implementado en
+   Claude Code; su equivalente está por verificar con fuente primaria), la
+   validación en uso real de los otros tres runtimes y la comparativa con y sin hooks
    (`prepare_test.sh --sin-hooks`).
-3. **Confirmar con fuente primaria** el soporte de `/init`-equivalente y
-   Subagents en Cursor (hoy marcados `[INCERTIDUMBRE]` en
-   `modules/project-knowledge-bootstrap.md` y en la matriz de
-   compatibilidad). Gemini CLI quedó confirmado el 2026-09-26 (`/init` y
-   `/agents`); falta decidir si se crea un adaptador de subagents para él.
+3. **Confirmar con fuente primaria** el `/init`-equivalente de Cursor (hoy
+   `[INCERTIDUMBRE]` en `modules/project-knowledge-bootstrap.md` y «No
+   confirmado» en la matriz §7). Subagents de Cursor (`.cursor/agents/`) y
+   `/init` y `/agents` de Gemini CLI ya están confirmados en §7 (consultas
+   del 2026-09-26); falta decidir si se crean adaptadores de subagents para
+   ellos. Pendiente de confirmar: /init en Cursor.
 4. Rellenar `project-knowledge-templates/` con los hechos reales de un
    proyecto concreto y verificar en la práctica que el agente los respeta
    como fuente de verdad (validación de comportamiento, no de estructura).

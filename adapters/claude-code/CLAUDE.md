@@ -74,12 +74,12 @@ información se pierde en el traspaso y el usuario deja de ver la salida
 completa. Esas fases quedan en el hilo principal con las Skills.
 
 ## Hooks deterministas (recomendado)
-Dos reglas no deben depender de que el modelo las recuerde, así que Claude
+Tres reglas no deben depender de que el modelo las recuerde, así que Claude
 Code las refuerza con hooks (código que se ejecuta en puntos fijos de la
 sesión; code.claude.com/docs/en/hooks). Copia el contenido de
 `settings.hooks.json` (en esta carpeta) a `.claude/settings.json` de tu
 proyecto (o fusiónalo con el que ya tengas). Requiere Python 3.8+:
-Ambos llaman a la lógica común `../hooks/sea_hooks.py` (compartida con
+Los tres llaman a la lógica común `../hooks/sea_hooks.py` (compartida con
 Codex, Cursor y Gemini CLI) con `--runtime claude-code`:
 - `session-start` (SessionStart: `startup`, `clear`, `compact`) —
   comprueba si `PROJECT_CONTEXT.md`/`ARCHITECTURE.md` faltan o solo tienen
@@ -91,6 +91,20 @@ Codex, Cursor y Gemini CLI) con `--runtime claude-code`:
   `reset --hard`, `clean -f`, descartar todos los cambios, borrar ramas con
   `-D`, reescribir historial o borrado recursivo forzado, obliga a Claude
   Code a pedir confirmación al usuario (NN-08).
+- `stop` (Stop) — si en el turno hubo `Edit`/`Write`/`MultiEdit` y no hay
+  evidencia de validación (comando de test, build o lint en `Bash`) ni una
+  declaración explícita de «no pude validar», bloquea la terminación UNA vez
+  con un motivo claro; respeta `stop_hook_active` y, ante cualquier error
+  (por ejemplo, transcripción ilegible), permite terminar. El formato del
+  transcript no está en la documentación oficial `[INFERENCIA]`. En Codex,
+  Cursor y Gemini CLI este hook no se añade: su equivalente está pendiente
+  de verificar con fuente primaria.
+
+**Límite de los hooks.** Un hook que agota su tiempo (`timeout`) no
+bloquea: Claude Code lo cancela y descarta su salida, así que no se emite
+ninguna decisión (code.claude.com/docs/en/hooks). Los hooks son una capa de
+refuerzo, no una barrera estricta; la capa estricta serán las reglas de
+permisos que escribirá el instalador (etapa E4 del plan de mejora).
 Si en tu sistema el intérprete no se llama `python3` (en Windows suele ser
 `python` o `py -3`), cambia el prefijo del comando. Los comandos usan
 `${CLAUDE_PROJECT_DIR}`; en Windows se recomienda que Claude Code use Git

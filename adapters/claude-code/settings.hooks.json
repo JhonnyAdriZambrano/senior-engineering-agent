@@ -7,6 +7,9 @@
     ],
     "PreToolUse": [
       { "matcher": "Bash", "hooks": [ { "type": "command", "command": "python3 \"${CLAUDE_PROJECT_DIR}/senior-engineering-agent/adapters/hooks/sea_hooks.py\" pre-tool --runtime claude-code" } ] }
+    ],
+    "Stop": [
+      { "hooks": [ { "type": "command", "command": "python3 \"${CLAUDE_PROJECT_DIR}/senior-engineering-agent/adapters/hooks/sea_hooks.py\" stop --runtime claude-code" } ] }
     ]
   }
 }

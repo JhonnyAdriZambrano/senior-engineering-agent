@@ -103,6 +103,49 @@ for cap in capabilities["capabilities"]:
         f"claves encontradas: {sorted(keys)}",
     )
 
+n_caps = len(capabilities["capabilities"])
+check("capabilities.yaml: incluye VISUAL_INSPECTION sin binding en ningún runtime",
+      any(c["name"] == "VISUAL_INSPECTION" and all(str(v).startswith("SIN BINDING") for v in c["bindings"].values())
+          for c in capabilities["capabilities"]), "falta VISUAL_INSPECTION o algún binding no es SIN BINDING")
+count_bad = []
+for _f in ("capabilities.yaml", "docs/ADDING_A_RUNTIME.md", "SPECIFICATION.md"):
+    for _m in re.finditer(r"\b(\d+) (capacidades|entradas)\b", read(_f)):
+        if int(_m.group(1)) != n_caps:
+            count_bad.append(f"{_f}: «{_m.group(0)}» (debería ser {n_caps})")
+check(f"Conteo de capacidades en prosa coherente con capabilities.yaml ({n_caps})", not count_bad, "; ".join(count_bad))
+adding_rows = set(re.findall(r"^\| `([A-Z_]+)` \|", read("docs/ADDING_A_RUNTIME.md"), re.M))
+check("docs/ADDING_A_RUNTIME.md lista todas las capacidades de capabilities.yaml",
+      adding_rows >= {c["name"] for c in capabilities["capabilities"]},
+      f"faltan: {sorted({c['name'] for c in capabilities['capabilities']} - adding_rows)}")
+
+# R-01: la matriz §7 y los pendientes de §9 de SPECIFICATION.md no pueden contradecirse
+spec = read("SPECIFICATION.md")
+_sec7 = spec.split("## 7.")[1].split("\n## 8.")[0]
+_sec9 = spec.split("## 9.")[1]
+_rows = [[c.strip() for c in l.strip().strip("|").split("|")] for l in _sec7.splitlines() if l.startswith("|")]
+_hdr = _rows[0]
+_matrix = {r[0].lower(): dict(zip(_hdr[1:], r[1:])) for r in _rows[2:]}
+
+
+def _confirmed(cell):
+    return re.sub(r"[*_`]", "", cell).lstrip().lower().startswith(("sí", "confirmado"))
+
+
+_contra = []
+for _m in re.finditer(r"Pendiente de confirmar:([^.]*)\.", _sec9):
+    for _item in re.split(r",|\by\b", _m.group(1)):
+        _mech = "subagents" if "agents" in _item.lower() else ("inicialización" if "/init" in _item else None)
+        for _rt in _hdr[1:]:
+            if _mech and _rt.lower() in _item.lower():
+                _row = next((v for k, v in _matrix.items() if _mech in k), None)
+                if _row and _confirmed(_row[_rt]):
+                    _contra.append(f"«{_item.strip()}» figura pendiente en §9 pero confirmado en §7")
+check("SPECIFICATION.md: ningún runtime aparece confirmado en la matriz §7 y pendiente de confirmar en §9",
+      not _contra and "Pendiente de confirmar:" in _sec9, "; ".join(_contra) or "§9 sin la línea «Pendiente de confirmar:»")
+_subs = _matrix["subagents (contexto aislado, delegación)"]
+check("SPECIFICATION.md §7: Cursor y Gemini CLI tienen subagents confirmados (R-01)",
+      _confirmed(_subs["Cursor"]) and _confirmed(_subs["Gemini CLI"]), "la matriz §7 no refleja Subagents de Cursor/Gemini CLI")
+
 # ---------------------------------------------------------------------------
 print("\n== 3. Consistencia manifest.yaml <-> core/03-task-classification.md <-> cabeceras de módulo ==")
 print("   (esta prueba habría detectado el hallazgo ALTO #2 de la auditoría)")
@@ -694,6 +737,69 @@ for rt, want in EXPECTED.items():
         wrong.append("entrada inválida: debía salir con 0 sin decidir")
     check(f"pre-tool ({rt}): '{want}' solo ante operaciones destructivas (NN-08)", not wrong, "; ".join(wrong))
 
+# --- Stop (R-04): transcripciones sintéticas, sin LLM ---
+def _tu(name, **inp):
+    return {"type": "assistant", "message": {"role": "assistant", "content": [{"type": "tool_use", "id": "t", "name": name, "input": inp}]}}
+
+
+def _tr():
+    return {"type": "user", "message": {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "t", "content": "ok"}]}}
+
+
+def _say(text):
+    return {"type": "assistant", "message": {"role": "assistant", "content": [{"type": "text", "text": text}]}}
+
+
+def _user(text):
+    return {"type": "user", "message": {"role": "user", "content": text}}
+
+
+def run_stop(entries, last="Listo.", active=False, raw=None, rt="claude-code", with_path=True):
+    with tempfile.TemporaryDirectory() as d:
+        tp = os.path.join(d, "t.jsonl")
+        with open(tp, "w", encoding="utf-8") as f:
+            f.write(raw if raw is not None else "\n".join(_json.dumps(e) for e in entries) + "\n")
+        data = {"hook_event_name": "Stop", "stop_hook_active": active, "last_assistant_message": last}
+        if with_path:
+            data["transcript_path"] = tp if raw != "<<missing>>" else os.path.join(d, "no-existe.jsonl")
+        r = subprocess.run([sys.executable, SEA, "stop", "--runtime", rt], input=_json.dumps(data), capture_output=True, text=True)
+        return r.returncode, (_json.loads(r.stdout) if r.stdout.strip() else None)
+
+
+EDITED = [_user("arregla el bug"), _tu("Edit", file_path="a.py"), _tr(), _say("Corregido.")]
+rc, out = run_stop(EDITED)
+check("Stop: hubo edición sin validar -> block con motivo claro",
+      rc == 0 and out and out["decision"] == "block" and "no pude validar" in out["reason"], str(out))
+for tool in ("Write", "MultiEdit"):
+    rc, out = run_stop([_user("x"), _tu(tool, file_path="a.py"), _tr(), _say("ok")])
+    check(f"Stop: {tool} sin validar -> block", rc == 0 and out and out["decision"] == "block", str(out))
+for cmd in ("python3 tests/test_agent.py", "pytest -q", "npm run build", "ruff check .", "cargo test"):
+    rc, out = run_stop([_user("x"), _tu("Edit", file_path="a.py"), _tr(), _tu("Bash", command=cmd), _tr(), _say("ok")])
+    check(f"Stop: edición + validación en Bash ({cmd}) -> allow", rc == 0 and out is None, str(out))
+rc, out = run_stop([_user("x"), _tu("Edit", file_path="a.py"), _tr(), _tu("Bash", command="ls -la"), _tr(), _say("ok")])
+check("Stop: un Bash que no valida (ls) no cuenta como evidencia -> block", rc == 0 and out and out["decision"] == "block", str(out))
+rc, out = run_stop(EDITED, active=True)
+check("Stop: stop_hook_active=true -> allow (bloquea una sola vez)", rc == 0 and out is None, str(out))
+rc, out = run_stop(EDITED, last="Edité a.py, pero no pude validar: no hay entorno de pruebas.")
+check("Stop: declaración explícita «no pude validar» -> allow", rc == 0 and out is None, str(out))
+rc, out = run_stop([_user("explica"), _say("Es así.")])
+check("Stop: sin ediciones en el turno -> allow", rc == 0 and out is None, str(out))
+rc, out = run_stop([_user("antes"), _tu("Edit", file_path="a.py"), _tr(), _say("hecho"), _user("ahora solo explica"), _say("ok")])
+check("Stop: una edición de un turno anterior no cuenta", rc == 0 and out is None, str(out))
+for label, kw in (("transcripción ilegible", dict(raw="{esto no es json\n\x00\xff")), ("archivo inexistente", dict(raw="<<missing>>")),
+                  ("sin transcript_path", dict(raw="", with_path=False)), ("transcripción vacía", dict(raw=""))):
+    rc, out = run_stop([], **kw)
+    check(f"Stop: {label} -> allow y sale con 0", rc == 0 and out is None, str(out))
+rc, out = run_stop(EDITED, rt="codex")
+check("Stop: fuera de Claude Code no interviene (Stop solo documentado para claude-code)", rc == 0 and out is None, str(out))
+_cc = _json.loads(read("adapters/claude-code/settings.hooks.json"))["hooks"]
+check("settings.hooks.json (Claude Code) define Stop con el subcomando stop",
+      "Stop" in _cc and " stop --runtime claude-code" in _cc["Stop"][0]["hooks"][0]["command"], str(_cc.get("Stop")))
+check("Codex, Cursor y Gemini CLI no definen Stop (pendiente de verificar)",
+      all("stop" not in k.lower() for rt_ in ("codex", "cursor", "gemini-cli") for k in _json.loads(read(HOOK_CONFIGS[rt_]))["hooks"]),
+      "algún runtime distinto de Claude Code define un evento Stop")
+check("sea_hooks.py cita la URL oficial de hooks en el docstring", "code.claude.com/docs/en/hooks" in read("adapters/hooks/sea_hooks.py").split('"' * 3)[1])
+
 # ---------------------------------------------------------------------------
 print("\n== 17. Herramientas del benchmark sin LLM (check_results.py, prepare/finish) ==")
 # ---------------------------------------------------------------------------
@@ -709,7 +815,9 @@ check("check_results.py: la puerta cubre 16 ítems (TEST-02 como 2a/2b/2c) y exi
 
 
 def _rec(result="PASS", recreated="sí (tests/sandbox/prepare_test.sh; commit base abc1234)", session="sí",
-         hooks="sí (configuración de hooks del adaptador)", cfg="2.1.283 / Sonnet 5.5 / medium", evidence=True, audit=None):
+         hooks="sí (configuración de hooks del adaptador)", cfg="2.1.283 / Sonnet 5.5 / medium", evidence=True, audit="auto"):
+    if audit == "auto":  # por defecto, la corrida está auditada con el mismo veredicto
+        audit = result if result in cr.RESULTS else None
     body = (f"# TEST-XX\n\n- **CLI / Modelo / Effort:** {cfg}\n- **Hooks activos:** {hooks}\n"
             f"- **Sandbox recreado antes de esta prueba:** {recreated}\n- **Sesión nueva de Claude Code:** {session}\n"
             f"- **Resultado:** {result}\n")
@@ -728,6 +836,7 @@ with tempfile.TemporaryDirectory() as d:
         "2026-09-27_TEST-13_r1.md": _rec(), "2026-09-27_TEST-13_r2.md": _rec(result="PARTIAL"), "2026-09-27_TEST-13_r3.md": _rec(),
         "2026-09-27_TEST-02b_r1.md": _rec(evidence=False),
         "2026-09-27_TEST-07_r1.md": _rec(cfg="2.1.283 / Sonnet 5 / medium"),
+        "2026-09-27_TEST-10_r1.md": _rec(audit=None), "2026-09-27_TEST-11_r1.md": _rec(audit="pendiente"),
         "2026-09-27_TEST-08_r1.md": _rec(audit="PARTIAL"),
         "2026-09-27_TEST-09_r1.md": _rec(result="PARTIAL", audit="PASS"),
     }
@@ -739,9 +848,12 @@ with tempfile.TemporaryDirectory() as d:
     valid = {r["file"]: r["valid"] for r in recs}
     expect_valid = {"2026-09-27_TEST-03_r1.md": True, "2026-09-27_TEST-04_r1.md": False, "2026-09-27_TEST-05_r1.md": False,
                     "2026-09-27_TEST-06_r1.md": False, "2026-09-27_TEST-12_r1.md": False, "2026-09-27_TEST-02b_r1.md": False,
-                    "2026-09-27_TEST-07_r1.md": False}
+                    "2026-09-27_TEST-07_r1.md": False, "2026-09-27_TEST-10_r1.md": False, "2026-09-27_TEST-11_r1.md": False}
     wrong = [f"{k}: válida={valid.get(k)} (esperado {v})" for k, v in expect_valid.items() if valid.get(k) != v]
     check("check_results.py: invalida corridas sin hooks, sin recrear, con otro modelo, sin resultado o sin evidencia", not wrong, "; ".join(wrong))
+    check("check_results.py: sin bloque «Resultado auditado» con veredicto no es válida; con bloque auditado sí (R-02)",
+          not valid.get("2026-09-27_TEST-10_r1.md") and not valid.get("2026-09-27_TEST-11_r1.md") and not st.get("TEST-10")
+          and not st.get("TEST-11") and valid.get("2026-09-27_TEST-03_r1.md") and st.get("TEST-03"), f"{valid} {st}")
     check("check_results.py: el modelo se compara de forma exacta («Sonnet 5» no vale por la referencia «Sonnet 5.5» ni al revés)",
           cr.config_matches(f"2.1 / {cr.REFERENCE_MODEL} / {cr.REFERENCE_EFFORT}") and not cr.config_matches(f"2.1 / {cr.REFERENCE_MODEL}0 / {cr.REFERENCE_EFFORT}")
           and not cr.config_matches(f"2.1 / {cr.REFERENCE_MODEL.rsplit('.', 1)[0]} / {cr.REFERENCE_EFFORT}") and not valid.get("2026-09-27_TEST-07_r1.md"))

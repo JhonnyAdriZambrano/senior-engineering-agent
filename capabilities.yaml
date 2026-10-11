@@ -8,7 +8,7 @@
 # capacidades, no asumir nombres fijos), aplicado aquí a nivel de
 # especificación de comportamiento del agente.
 #
-# ESQUEMA (idéntico para las 7 capacidades):
+# ESQUEMA (idéntico para las 8 capacidades):
 #   name, purpose, bindings: {claude-code, codex, cursor, gemini-cli,
 #   chatgpt-projects, gemini-gems, fallback_universal}
 #   regla_transversal (opcional): regla que aplica igual en todos los runtimes.
@@ -105,3 +105,14 @@ capabilities:
       chatgpt-projects: "conectores/Apps MCP habilitados en la cuenta, si existen"
       gemini-gems: "SIN BINDING — sin evidencia de soporte de integraciones externas más allá de archivos de Knowledge"
       fallback_universal: "declarar explícitamente que la capacidad no está disponible en este runtime; nunca simular su existencia"
+
+  - name: VISUAL_INSPECTION
+    purpose: "Verificar visualmente interfaces renderizadas."
+    bindings:
+      claude-code: "SIN BINDING — no afirmar verificación visual"
+      codex: "SIN BINDING — no afirmar verificación visual"
+      cursor: "SIN BINDING — no afirmar verificación visual"
+      gemini-cli: "SIN BINDING — no afirmar verificación visual"
+      chatgpt-projects: "SIN BINDING — no afirmar verificación visual"
+      gemini-gems: "SIN BINDING — no afirmar verificación visual"
+      fallback_universal: "SIN BINDING — no afirmar verificación visual"

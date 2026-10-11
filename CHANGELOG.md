@@ -22,6 +22,43 @@ código ejecutable), MAJOR/MINOR/PATCH se interpretan así:
 cambios de comportamiento. La etiqueta `1.0.0` se asignó el 2026-10-09 al
 cumplirse la *Puerta de salida hacia 1.0.0* (más abajo).
 
+## [Sin publicar]
+
+Etapa E1 (remediación) del plan de mejora posterior a 1.0.0. No cambia la
+versión de `manifest.yaml` ni `core/`.
+
+### Añadido
+- **Hook `Stop` para Claude Code** (`adapters/hooks/sea_hooks.py stop`,
+  `adapters/claude-code/settings.hooks.json`): si en el turno hubo
+  `Edit`/`Write`/`MultiEdit` sin evidencia de validación (test, build o lint
+  en `Bash`) ni una declaración de «no pude validar», bloquea una sola vez;
+  respeta `stop_hook_active` y nunca rompe la sesión. En Codex, Cursor y
+  Gemini CLI no se añade: pendiente de verificar con fuente primaria. El
+  formato del transcript no está en la documentación oficial (inferido).
+- **Capacidad `VISUAL_INSPECTION`** en `capabilities.yaml` (verificar
+  visualmente interfaces renderizadas), sin binding en ningún runtime:
+  no se debe afirmar verificación visual. Los conteos pasan de 7 a 8
+  capacidades.
+- Pruebas estructurales: coherencia §7/§9 de `SPECIFICATION.md`, conteo de
+  capacidades, hook `Stop` con transcripciones sintéticas y auditoría de
+  corridas.
+
+### Cambiado
+- `SPECIFICATION.md §9`: se alinea con la matriz §7 (Subagents de Cursor y
+  `/init` y `/agents` de Gemini CLI ya confirmados el 2026-09-26; solo
+  queda pendiente el `/init` de Cursor).
+- `scripts/check_results.py`: una corrida solo es válida para la puerta si
+  su registro tiene un bloque «Resultado auditado» con veredicto
+  (PASS|PARTIAL|FAIL|NO EJERCITADO); si no, el motivo es «sin auditoría
+  (falta «Resultado auditado»)».
+- `adapters/claude-code/CLAUDE.md`: documenta que un hook que agota su tiempo
+  no bloquea y que la capa estricta serán las reglas de permisos del
+  instalador (E4).
+
+### Obsoleto
+- `tests/behavioral/run_scenarios.sh`: lo sustituirá `claude plugin eval` en
+  E3; se conserva sin cambios funcionales.
+
 ## [1.0.0] — 2026-10-09
 
 Primera versión estable. Se asigna al cumplirse la *Puerta de salida hacia

@@ -12,7 +12,10 @@ ese resultado prevalece sobre el que anotó el evaluador (que se conserva).
 Una corrida es válida si: tiene resultado, el sandbox se recreó con
 prepare_test.sh, fue en sesión nueva, tiene evidencia objetiva de
 finish_test.sh, los hooks estaban activos (configuración de referencia) y el
-modelo/effort coinciden con la configuración de referencia de abajo.
+modelo/effort coinciden con la configuración de referencia de abajo, y tiene
+un bloque de auditoría con veredicto («- **Resultado auditado:** **X**», X =
+PASS|PARTIAL|FAIL|NO EJERCITADO). Una corrida sin auditar se lista (columna
+«Auditado» de RESUMEN.md) pero no cuenta para la puerta.
 
 Puerta: las 14 pruebas (TEST-02 como 2a, 2b y 2c) con sus últimas N corridas
 válidas en PASS; N = 3 para TEST-00, TEST-02b, TEST-07 y TEST-13; N = 1 para el
@@ -83,6 +86,8 @@ def parse(path):
         reasons.append("sin evidencia de finish_test.sh")
     if not field(text, "Hooks activos:").startswith("sí"):
         reasons.append("sin hooks (corrida informativa)")
+    if not rec["audited"]:
+        reasons.append("sin auditoría (falta «Resultado auditado»)")
     if not config_matches(field(text, "CLI / Modelo / Effort:")):
         reasons.append(f"modelo/effort distinto de la referencia ({REFERENCE_MODEL}, {REFERENCE_EFFORT})")
     rec["reasons"] = reasons

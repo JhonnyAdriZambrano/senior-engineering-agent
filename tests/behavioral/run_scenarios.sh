@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+# OBSOLETO: este arnés será sustituido por `claude plugin eval` en la etapa E3
+# del plan de mejora. Se conserva sin cambios funcionales; no lo uses como
+# evidencia de la puerta (ya era solo un filtro heurístico).
+#
 # Arnés de comportamiento — alineado 1:1 con tests/BENCHMARK.md (TEST-00 a
 # TEST-13). Usa el modo no-interactivo confirmado de Claude Code
 # (code.claude.com/docs/en/headless): claude -p "prompt" --output-format json.
