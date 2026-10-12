@@ -351,6 +351,38 @@ canónico 00→05): <archivo>]` para que el modelo la reconstruya en el orden
 canónico. A diferencia de `@import`, no hay un solo bloque contiguo. La fuente
 única sigue siendo `core/`, `modules/`, `adapters/` y `manifest.yaml`.
 
+**Idioma de salida (D-16 revisada, 1.2.0).** El núcleo normativo sigue en
+español (fuente de verdad). El plugin declara un selector `language`
+(`es` | `en`, defecto `es`) en `userConfig` de `plugin.json`
+(<https://code.claude.com/docs/en/plugins/manifest-reference>, «User
+configuration»: `options` se muestra como selector en `/config` y **exige
+Claude Code ≥ v2.1.271**; con `options` declarado, las versiones anteriores
+no pueden cargar el plugin). Los hooks reciben el valor en
+`CLAUDE_PLUGIN_OPTION_LANGUAGE`. Precedencia en `sea_hooks.py`:
+`CLAUDE_PLUGIN_OPTION_LANGUAGE` → `SEA_LANGUAGE` → `es` (los demás runtimes:
+`SEA_LANGUAGE` → `es`); un valor desconocido equivale a `es`. [HECHO VERIFICADO
+con Claude Code 2.1.296] Un hook de plugin recibe esa variable solo si el
+valor está guardado en `pluginConfigs`: el `default` no se exporta, y por eso
+«no elegido» se comporta como `es`. Fuente única: `manifest.yaml > i18n` (idiomas,
+rol en inglés y tabla de etiquetas es→en, que cubre todas las etiquetas entre
+corchetes de `core/` y `modules/`; lo comprueba la suite), materializada por
+`scripts/generate_plugin.py` en `adapters/hooks/i18n.json`. En modo `en`,
+`session-start` añade una directiva generada (responder en inglés, rol literal en
+inglés, tabla de etiquetas) y los mensajes de NN-08, NN-06b, del informe de
+conocimiento y de Stop salen en inglés; en modo `es` la salida de `session-start`
+y `pre-tool` es idéntica byte a byte a la de 1.1.2.
+
+**Stop y la documentación (D-18, H-E3d-2).** El hook `Stop` no exige validación
+cuando TODOS los archivos editados en el turno (herramientas
+Edit/Write/MultiEdit y destinos de edición por shell) son documentación:
+extensión `.md`, `.markdown`, `.txt`, `.rst` o `.adoc` (sin distinguir
+mayúsculas). Basta un destino desconocido (`?`, ruta vacía, variable) o de otro
+tipo (código, configuración, sin extensión) para que el comportamiento sea el de
+siempre. Límites: la extensión no prueba el contenido (un `.txt` o `.md` que un
+programa lee como dato cuenta como documentación) y solo cuenta el destino de
+las ediciones, no lo que más ejecute el comando. Las declaraciones de «no pude
+validar» se reconocen en español y en inglés.
+
 ---
 
 ## 8. Seguridad
@@ -387,8 +419,8 @@ externo que ya no existe; las mitigaciones están en el núcleo
 
 ## 9. Próximos pasos
 
-Estado (versión 1.1.2; puerta de salida hacia 1.0.0 cumplida el 2026-10-09; la
-de 1.1.0 y la de 1.1.2 están definidas en `CHANGELOG.md`; 1.1.1 no se etiquetó): instalación como plugin de Claude Code
+Estado (versión 1.2.0; puerta de salida hacia 1.0.0 cumplida el 2026-10-09; la
+de 1.1.0, la de 1.1.2 y la de 1.2.0 están definidas en `CHANGELOG.md`; 1.1.1 no se etiquetó): instalación como plugin de Claude Code
 (vía principal) y documentada por runtime, Skills generadas y compartidas por
 Claude Code, Codex, Cursor y Gemini CLI, Subagents de solo lectura, tests
 estructurales, script de sandbox para el benchmark, núcleo compacto

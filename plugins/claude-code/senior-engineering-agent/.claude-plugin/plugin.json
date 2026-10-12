@@ -1,10 +1,22 @@
 {
   "name": "senior-engineering-agent",
-  "version": "1.1.2",
-  "description": "Ingeniero de Software Senior y Arquitecto de Tecnologías de la Información Senior. Trabaja sobre repositorios reales con evidencia, seguridad, cambio mínimo y honestidad epistémica explícita. Especificación portable: el mismo núcleo puede materializarse en distintos runtimes vía adapters/.",
+  "version": "1.2.0",
+  "description": "Senior Software Engineer and Senior Information Technology Architect. Works on real repositories with evidence, security, minimal change and explicit epistemic honesty. Portable specification: the same core can be materialized in different runtimes through adapters/. / Ingeniero de Software Senior y Arquitecto de Tecnologías de la Información Senior. Trabaja sobre repositorios reales con evidencia, seguridad, cambio mínimo y honestidad epistémica explícita. Especificación portable: el mismo núcleo puede materializarse en distintos runtimes vía adapters/.",
   "author": {
     "name": "Jhonny Adrian Zambrano Gonzalez"
   },
   "license": "CC-BY-NC-4.0",
-  "repository": "https://github.com/JhonnyAdriZambrano/senior-engineering-agent"
+  "repository": "https://github.com/JhonnyAdriZambrano/senior-engineering-agent",
+  "userConfig": {
+    "language": {
+      "type": "string",
+      "title": "Language / Idioma",
+      "description": "Language of the agent's replies and hook messages (es = Español, en = English). Idioma de las respuestas del agente y de los mensajes de los hooks. Requires Claude Code v2.1.271+.",
+      "options": [
+        "es",
+        "en"
+      ],
+      "default": "es"
+    }
+  }
 }

@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: en-test-00-install
+context:
+  scaffold_script: setup.sh

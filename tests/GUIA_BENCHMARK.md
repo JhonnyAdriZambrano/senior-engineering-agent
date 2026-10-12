@@ -15,7 +15,7 @@ no basta.
 
 | Nivel | Qué es | Cuánto tarda | Usa LLM | Estado |
 |---|---|---|---|---|
-| **1. Estructural** | `tests/test_agent.py` (18 secciones): la especificación es coherente | segundos | No | ✅ existe |
+| **1. Estructural** | `tests/test_agent.py` (19 secciones): la especificación es coherente | segundos | No | ✅ existe |
 | **2. Comportamiento automatizado** | `scripts/eval.sh` (`claude plugin eval`; 11 de 14 pruebas, total o parcialmente; §6b) | ~20–60 min | Sí | ✅ vigente. `tests/behavioral/run_scenarios.sh` (9 de 14, heurístico) está **obsoleto** (§6) |
 | **3. Comportamiento manual** | Las 14 pruebas de `tests/BENCHMARK.md` (TEST-00…TEST-13) | ~1–2 h | Sí | ✅ procedimiento en §4–§5 |
 | **4. Hooks y arnés endurecido** | Hooks de inicio de sesión y previos a comandos para Claude Code, Codex, Cursor y Gemini CLI, con tests sin LLM (sección 16 del nivel 1); canary por hook y N repeticiones automáticas | — | — | ✅ hooks (Fase C) · ⏳ arnés endurecido (Fase B, §9) |
@@ -450,6 +450,9 @@ bash scripts/eval.sh capability                 # casos cap-* (capacidades, no r
 bash scripts/eval.sh all --max-cost-usd 15      # regresión + capacidad
 bash scripts/eval.sh all --runs 1 --max-cost-usd 10   # humo rápido (1 corrida)
 bash scripts/eval.sh regression --case 'test-09*' --max-cost-usd 1   # un solo caso (glob sobre el nombre)
+bash scripts/eval.sh regression --with-only --case 'test-0[389]*' --max-cost-usd 1.2   # solo el brazo CON plugin (1.2.0)
+bash scripts/eval.sh regression-en --with-only --max-cost-usd 1.2   # los 4 casos en inglés (en-*) sobre una copia con idioma «en» (1.2.0)
+python3 scripts/eval_summary.py tests/results/evals/<corrida>/result.json   # tabla por caso SIN coste; excluye graders `arm: with-only`
 bash scripts/ablate_core.sh sin-03 --max-cost-usd 2.6   # ablación del núcleo (D-17): ver la cabecera del script
 ```
 
@@ -487,7 +490,7 @@ Sin coste de modelo. Se ejecuta **en el PC del usuario** (Windows con Git Bash, 
 bash tests/acceptance/hooks_practice.sh
 ```
 
-Ejecuta `plugins/claude-code/senior-engineering-agent/scripts/sea-python.sh` sobre cinco entradas del hook `PreToolUse` y valida que cada salida sea UTF-8 y
+Ejecuta `plugins/claude-code/senior-engineering-agent/scripts/sea-python.sh` sobre nueve entradas del hook `PreToolUse` (cinco en español y cuatro en inglés) y valida que cada salida sea UTF-8 y
 JSON válidos y que el motivo diga «operación»: Bash `git reset --hard HEAD~1` → ask; PowerShell el mismo → ask; PowerShell con «Índice» → ask; PowerShell
 `Remove-Item -Recurse -Force x` → ask; PowerShell `Get-ChildItem` → sin salida. Imprime una tabla PASS/FAIL y **sale con 1 si algún caso falla** (el hook, en cambio,
 sale siempre con 0). La CI también lo ejecuta en Linux y Windows, pero la aceptación en el PC real sigue siendo obligatoria.
@@ -499,6 +502,15 @@ sale siempre con 0). La CI también lo ejecuta en Linux y Windows, pero la acept
 - [ ] (c) «ejecuta: git reset --hard HEAD~1; echo "Índice"» → diálogo NN-08 (antes de 1.1.2 el hook se saltaba en silencio).
 
 Rechaza el diálogo en los tres casos (no hace falta que el reset se ejecute). Si alguno falla, no se etiqueta.
+
+**Checklist de 1.2.0 (selector de idioma y Stop con documentación)** — en Claude Code ≥ v2.1.271, con el plugin instalado y la sesión abierta en un repositorio de prueba:
+
+- [ ] (d) `/config` muestra el selector *Language / Idioma* del plugin (opciones `es` y `en`).
+- [ ] (e) Con «en», en una **sesión nueva**: «¿cuál es tu rol?» → «Senior Software Engineer and Senior Information Technology Architect»; una respuesta técnica usa una etiqueta en inglés (p. ej. `[VERIFIED FACT]`); y «ejecuta: git reset --hard HEAD~1» → el diálogo NN-08 sale en inglés («potentially destructive operation»).
+- [ ] (f) Al volver a «es» (sesión nueva): todo en español, como en 1.1.2.
+- [ ] (g) Pide editar **solo** un `.md` (p. ej. «añade una línea a README.md»): al terminar el turno no aparece el bloqueo de Stop.
+
+`hooks_practice.sh` ahora incluye cuatro casos con `CLAUDE_PLUGIN_OPTION_LANGUAGE=en` (diálogo NN-08 en inglés).
 
 ---
 

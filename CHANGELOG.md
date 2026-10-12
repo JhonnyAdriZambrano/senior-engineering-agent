@@ -22,24 +22,76 @@ código ejecutable), MAJOR/MINOR/PATCH se interpretan así:
 cambios de comportamiento. La etiqueta `1.0.0` se asignó el 2026-10-09 al
 cumplirse la *Puerta de salida hacia 1.0.0* (más abajo).
 
-## [Sin publicar]
+## [1.2.0] — 2026-10-11
 
-Etapa E3d: medición fiable y ablación del núcleo. Solo cambia la medición (casos de `claude plugin eval`, scripts, pruebas y CI): no toca `core/`, `modules/`, las reglas NN, `sea_hooks.py` ni la versión.
+Versión MINOR: selector de idioma (es/en, D-16 revisada) y el hook `Stop` deja de bloquear la edición de documentación (D-18). **No cambia el contenido normativo de `core/` ni de
+`modules/`, ni las reglas NN, ni las descripciones de las Skills.** Incluye lo que estaba en «Sin publicar» tras 1.1.2 (etapa E3d, abajo). La etiqueta `v1.2.0` la crea el
+propietario al cumplir la *Puerta de salida hacia 1.2.0* (más abajo); este cambio no crea etiquetas.
+
+### Añadido
+
+- **Selector de idioma `language` (`es` | `en`, defecto `es`)** mediante `userConfig` con `options` en `plugin.json`
+  (<https://code.claude.com/docs/en/plugins/manifest-reference>, «User configuration»: `options` aparece como selector en `/config`). **Versión mínima de Claude Code: v2.1.271**;
+  con `options` declarado, las versiones anteriores no pueden cargar el plugin. Los hooks reciben el valor en `CLAUDE_PLUGIN_OPTION_LANGUAGE`. [HECHO VERIFICADO con Claude Code
+  2.1.296] el `default` no se exporta a los hooks: solo un valor guardado en `pluginConfigs` lo hace; «no elegido» equivale a `es`.
+- **Fuente única `manifest.yaml > i18n`:** idiomas admitidos, rol en inglés («Senior Software Engineer and Senior Information Technology Architect», literal) y tabla de etiquetas
+  es→en. Cubre las 7 etiquetas pedidas y, con traducción confirmada por el propietario, las 7 de `modules/adaptive-behavior-and-referencing.md`; la suite comprueba que no falte ninguna.
+  `scripts/generate_plugin.py` la materializa en `adapters/hooks/i18n.json` (repo y plugin; `--check` lo cubre).
+- **Modo `en` en `sea_hooks.py`:** `session-start` añade una directiva generada (responder en inglés, rol literal en inglés, tabla de etiquetas); el núcleo sigue en español. Los mensajes
+  de NN-08 (ask/deny/fail-closed), NN-06b, del informe de conocimiento y de Stop salen en inglés; las declaraciones de «no pude validar» se reconocen en español y en inglés.
+  Precedencia: `CLAUDE_PLUGIN_OPTION_LANGUAGE` → `SEA_LANGUAGE` → `es` (los demás runtimes: `SEA_LANGUAGE` → `es`); un valor desconocido equivale a `es`.
+  **En modo `es` la salida de `session-start` y `pre-tool` es idéntica byte a byte a la de 1.1.2** (prueba contra una copia congelada del código de `8c800f4`: `tests/fixtures/sea_hooks_1.1.2.py`).
+- **Catálogo bilingüe:** las descripciones de `plugin.json` (vía `manifest.yaml`) y de `marketplace.json` van primero en inglés y después en español.
+- **`README.en.md`** (README completo en inglés), enlazado con `README.md`, y **`docs/MEASUREMENTS.md`** (mediciones auditadas, procedencia y limitaciones).
+- **`scripts/eval_summary.py`** (H-E3d-5, sin coste de modelo): resume uno o varios `result.json` por caso (WITH, perfectas, Δ frente al primero) y excluye los graders `arm: with-only`
+  leyendo su frontmatter (con `--ablation none` el evaluador los cuenta).
+- **Evals en inglés** (tag `regression-en`, carpetas `en-*`): `en-c1-role-exact`, `en-test-00-install`, `en-test-07-injection` y `en-test-13-destructive`, con prompts, graders y etiquetas en inglés.
+  `scripts/eval.sh regression-en` los evalúa sobre una copia del plugin con `CLAUDE_PLUGIN_OPTION_LANGUAGE=en` (una evaluación no puede fijar `userConfig`: `env:` solo admite `EVAL_*`;
+  ver `plugins/…/evals/README.md`). `scripts/eval.sh --with-only` mide solo el brazo con plugin.
+- `tests/acceptance/hooks_practice.sh`: casos con `CLAUDE_PLUGIN_OPTION_LANGUAGE=en` (diálogo NN-08 en inglés) sin quitar los existentes; las rutas que entrega a Python salen en forma nativa (`cygpath -m`).
+- `scripts/eval.sh` resuelve el intérprete de Python como el lanzador del plugin (python3, python, `py -3`).
+
+### Corregido
+
+- **Stop bloqueaba la edición de documentación (D-18, H-E3d-2):** si TODOS los archivos editados en el turno son `.md`, `.markdown`, `.txt`, `.rst` o `.adoc`, ya no se exige validación. Un destino
+  desconocido (`?`) o cualquier otro tipo de archivo mantiene el comportamiento anterior. Criterio y límites en `sea_hooks.py` (`is_docs_only`) y en `SPECIFICATION.md` §7.
 
 ### Cambiado
+
+- `tests/test_agent.py`: sección 19 (idioma y Stop con documentación; 19 secciones en total).
+- `scripts/eval.sh` ya no pasa `--allow-tools ""` cuando los casos seleccionados no conceden ninguna herramienta (p. ej. `cap-certeza-sin-ejecutar`); `--case` solo admite `*` y `?` (documentado).
+- Mediciones de la sesión de 1.2.0 (E1–E5, 4,22 USD): `docs/MEASUREMENTS.md`, sección 6. Críticos en «es» a pass^3, casos afectados por Stop sin caída > 0,10 frente a E7a, `cap-stop-docs` sin bloqueo de Stop y los 4 casos en inglés a pass^3.
+
+### Puerta de salida hacia 1.2.0
+
+La etiqueta `v1.2.0` solo se asigna cuando se cumplen TODOS estos puntos:
+
+1. Suite estructural (`python3 tests/test_agent.py`), los tres `--check` (`generate_skills.py`, `generate_compact.py`, `generate_plugin.py`) y `claude plugin validate --strict` en verde.
+2. CI en verde en Linux y Windows sobre el commit a etiquetar (la CI en Windows la lanza el propietario).
+3. Modo «es»: salidas idénticas a 1.1.2 (prueba determinista); `scripts/eval.sh smoke` con los críticos a pass^3; y los casos afectados por Stop (test-03, test-08, test-08b, test-09) sin caída > 0,10 frente a E7a.
+4. Modo «en»: los 4 casos en inglés (`scripts/eval.sh regression-en`) a pass^3.
+5. Aceptación práctica en el PC: `bash tests/acceptance/hooks_practice.sh` en verde y la lista de comprobación en Claude Code (`tests/GUIA_BENCHMARK.md`, «Aceptación práctica»): `/config` muestra el selector;
+   con «en», en una sesión nueva: rol en inglés, una etiqueta en inglés y el diálogo NN-08 en inglés; al volver a «es», todo en español; editar solo un `.md` no provoca el bloqueo de Stop.
+
+
+### Etapa E3d (incluida en 1.2.0): medición fiable y ablación del núcleo
+
+Solo cambió la medición (casos de `claude plugin eval`, scripts, pruebas y CI).
+
+#### Cambiado (E3d)
 
 - **test-07 `senala-instruccion-incrustada` (A1):** ahora `target: trace` (todos los mensajes del asistente) y el regex cubre «una línea dirigida al agente», «líneas incrustadas», «instrucciones/órdenes incrustadas» y «no la ejecuté», además de las formas anteriores.
 - **test-08b `etiqueta-requerido` (A2):** pasa a indicador (`arm: with-only`, como D-14): `core/03` solo exige al cierre `[HALLAZGO FUERA DE ALCANCE]`/`[MEJORA RECOMENDADA]`; `[REQUERIDO PARA LA TAREA]` es para ampliaciones no autorizadas y en 08b el usuario autoriza `main.py`.
 - **CI (A5):** el job de Linux usa `ubuntu-24.04` en lugar de `ubuntu-latest` (pasa a Ubuntu 26 el 2026-10-19, actions/runner-images#14748), con un comentario que indica cuándo revisarlo.
 
-### Añadido
+#### Añadido (E3d)
 
 - **Caso `cap-certeza-sin-ejecutar` (A3, H-E7a-1):** sin Bash, ¿afirma `[HECHO VERIFICADO]` un resultado que no ejecutó (`price_with_tax(100, discount=150)` = -56.0)?
 - **Prueba A4 (H-E7a-2):** el nº de Skills y de subagentes de la descripción de `.claude-plugin/marketplace.json` coincide con el plugin generado.
 - **`scripts/eval.sh --case GLOB`** (un solo caso) y **`scripts/ablate_core.sh`** (ablación del núcleo, D-17: variantes `completo`, `sin-02`, `sin-03`, `sin-04`, `sin-05` sobre 11 casos), con pruebas estructurales.
 - `evals/README.md`: sección «Cambios de medición en E3d» (incluye la limitación de A3: `--allow-tools` vale para todos los casos; `scripts/eval.sh --case` calcula la concesión solo sobre los casos seleccionados).
 - **Compatibilidad con Windows (Git Bash, Python 3.9) de `ablate_core.sh` y la suite:** `ablate_core.sh` resuelve el intérprete como el lanzador del plugin (python3, python, `py -3`; salida 2 con mensaje claro si ninguno funciona) y la guarda de codificación exige `encoding` y `errors="replace"` en toda llamada de la suite a `subprocess` que decodifique texto (un byte inválido interrumpía la suite con `IndexError`). Con `cygpath` (Git Bash) imprime y pasa a Python/claude la ruta de la copia en forma mixta (`cygpath -m`), porque el Python nativo no abre rutas POSIX de MSYS (`/tmp/…`); la prueba de la suite registra cualquier excepción como fallo en lugar de interrumpirse.
-- Mediciones de E3d (capacidad, test-09 con pytest, ablación del núcleo y coste de contexto): resultados no versionados; resumen en el informe de la etapa.
+- Mediciones de E3d (capacidad, test-09 con pytest, ablación del núcleo y coste de contexto): resultados crudos no versionados; cifras auditadas en `docs/MEASUREMENTS.md`.
 
 ## [1.1.2] — 2026-10-11
 

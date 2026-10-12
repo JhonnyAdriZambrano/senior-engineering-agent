@@ -1,5 +1,7 @@
 # Senior Engineering Agent
 
+🇬🇧 **English version: [README.en.md](README.en.md)** — 🇪🇸 Este archivo es la versión en español.
+
 Especificación portable de un agente que encarna el rol de **Ingeniero de
 Software Senior y Arquitecto de Tecnologías de la Información Senior**:
 identidad, reglas y workflows definidos **una sola vez**, capaces de
@@ -50,7 +52,8 @@ basada en evidencia de cada decisión de diseño.
 
 ```
 senior-engineering-agent/
-├── README.md                    este archivo
+├── README.md                    este archivo (español)
+├── README.en.md                 README completo en inglés (enlazado con este)
 ├── CHANGELOG.md                 historial de versiones y política de versionado
 ├── SPECIFICATION.md             arquitectura completa, contrato del agente
 ├── LICENSE                      CC BY-NC 4.0 + aclaraciones del autor
@@ -71,7 +74,8 @@ senior-engineering-agent/
 │   ├── skills/                  7 Skills (SKILL.md) GENERADAS desde modules/,
 │   │                            compartidas por Claude Code, Codex, Cursor y Gemini CLI
 │   ├── hooks/
-│   │   └── sea_hooks.py         lógica común de los hooks (Claude Code, Codex, Cursor, Gemini CLI)
+│   │   ├── sea_hooks.py         lógica común de los hooks (Claude Code, Codex, Cursor, Gemini CLI)
+│   │   └── i18n.json            idiomas, rol en inglés y etiquetas es→en (GENERADO desde manifest.yaml > i18n)
 │   ├── claude-code/             CLAUDE.md + agents/ (2 Subagents de solo lectura)
 │   │                            + settings.hooks.json (hooks SessionStart, PreToolUse y Stop)
 │   ├── codex/                   AGENTS.md + hooks.json + agents/ (3 Subagents de solo lectura;
@@ -92,7 +96,8 @@ senior-engineering-agent/
 │           │   └── hooks.json   un SessionStart por archivo de core/, más PreToolUse y Stop
 │           ├── adapters/
 │           │   └── hooks/
-│           │       └── sea_hooks.py  misma ruta relativa que en la fuente
+│           │       ├── sea_hooks.py  misma ruta relativa que en la fuente
+│           │       └── i18n.json     copia de adapters/hooks/i18n.json
 │           ├── project-knowledge-templates/  plantillas que el hook SessionStart necesita
 │           ├── scripts/
 │           │   └── sea-python.sh  lanzador de Python (python3 | python | py -3)
@@ -100,7 +105,8 @@ senior-engineering-agent/
 │               └── README.md    qué se automatiza y criterio → grader
 ├── project-knowledge-templates/ plantillas que copias a TU proyecto real
 ├── docs/
-│   └── ADDING_A_RUNTIME.md      contrato para construir un adaptador nuevo
+│   ├── ADDING_A_RUNTIME.md      contrato para construir un adaptador nuevo
+│   └── MEASUREMENTS.md          mediciones auditadas (E7a, E3d y 1.2.0): tablas, procedencia y limitaciones
 ├── tests/                       validación estructural + evaluación de comportamiento
 │   ├── test_agent.py            validación estructural (nivel 1, sin LLM)
 │   ├── run_tests.sh             punto de entrada de test_agent.py
@@ -108,6 +114,7 @@ senior-engineering-agent/
 │   ├── GUIA_BENCHMARK.md        CÓMO ejecutar todas las pruebas (empieza aquí)
 │   ├── MANUAL_SCENARIOS.md      escenarios narrativos de verificación manual
 │   ├── acceptance/              hooks_practice.sh: aceptación práctica de los hooks con el lanzador real (sin LLM)
+│   ├── fixtures/                sea_hooks_1.1.2.py: copia congelada del hook de 1.1.2 (prueba de identidad byte a byte del modo «es»)
 │   ├── behavioral/              arnés heurístico run_scenarios.sh (OBSOLETO: lo sustituye scripts/eval.sh)
 │   ├── sandbox/                 crea el sandbox del benchmark (estados A/B/C)
 │   └── results/                 registros de corridas (plantilla _TEMPLATE.md)
@@ -119,11 +126,12 @@ senior-engineering-agent/
     ├── eval.sh                  evaluación automatizada con `claude plugin eval` (smoke|regression|capability|all)
     ├── ablate_core.sh           ablación del núcleo (D-17): sin core/02…05 sobre 11 casos (`completo|sin-02|sin-03|sin-04|sin-05`)
     ├── eval_report.py           informe de una corrida de eval.sh (WITH / W/OUT / Δ)
+    ├── eval_summary.py          resumen por caso de uno o varios result.json (excluye graders `arm: with-only`; sin coste de modelo)
     ├── check_results.py         resume tests/results/ y el estado de la puerta (benchmark manual de 1.0.0)
     └── new_result.sh            crea el registro prellenado de una corrida del benchmark
 ```
 
-## Estado de validación por runtime (versión 1.1.0)
+## Estado de validación por runtime (versión 1.2.0)
 
 | Runtime | Estado | Qué significa |
 |---|---|---|
@@ -159,6 +167,25 @@ En Windows se recomienda Git Bash para los hooks. Los hooks de un mismo evento
 corren en paralelo y la documentación no garantiza su orden: cada parte del
 núcleo lleva la cabecera «[Núcleo SEA — parte X de 6 (orden canónico 00→05)]».
 Detalle y límites: `adapters/claude-code/CLAUDE.md`.
+
+**Idioma (es/en).** Desde 1.2.0 el plugin trae un selector `language` (`es` por
+defecto, `en`) en `userConfig`: aparece en `/config` → *senior-engineering-agent*
+(**requiere Claude Code ≥ v2.1.271**; con una versión anterior el plugin no carga,
+porque declara `options`). En modo `en` el agente responde en inglés, usa el rol
+«Senior Software Engineer and Senior Information Technology Architect» y las
+etiquetas en inglés (`[VERIFIED FACT]`, `[TECHNICAL RECOMMENDATION]`…), y los
+mensajes de los hooks (diálogo NN-08, alertas NN-06b, avisos de Stop) también
+salen en inglés. El núcleo normativo sigue en español (fuente de verdad). Los
+hooks reciben el valor en `CLAUDE_PLUGIN_OPTION_LANGUAGE`; otros runtimes pueden usar
+`SEA_LANGUAGE=en`. Precedencia: `CLAUDE_PLUGIN_OPTION_LANGUAGE` → `SEA_LANGUAGE` →
+`es`. Cambia el valor y abre una sesión nueva. [HECHO VERIFICADO con Claude Code
+2.1.296] Mientras no elijas un valor, el hook no recibe la variable y se comporta
+como `es`. Detalle: `SPECIFICATION.md` §7.
+
+**Stop y la documentación.** Si lo único que editas en un turno son archivos
+`.md`, `.markdown`, `.txt`, `.rst` o `.adoc`, el hook `Stop` no exige validación
+(un solo archivo de otro tipo, o un destino que no pueda determinar, mantiene la
+exigencia).
 
 **Alternativa: copia manual** (sin plugin; no combines ambas en el mismo
 proyecto).
@@ -234,6 +261,11 @@ mínimas y checklist para construir un adaptador nuevo sin tocar `core/`.
   techo que las sustituye.
 - Ver `SPECIFICATION.md §6` y `§7` para el detalle completo de qué es
   portable, qué es adaptable y qué depende fuertemente de una plataforma.
+
+## Mediciones
+
+Resultados auditados (regresión E7a, test-09 con pytest, ablación del núcleo, capacidad y coste de contexto), con su procedencia y sus limitaciones: [`docs/MEASUREMENTS.md`](docs/MEASUREMENTS.md).
+Resumen: Δ medio +0,41 sobre 16 casos (E7a, 2026-10-11, `claude-sonnet-5-5`), los 4 críticos a pass^3; coste de contexto ≈ 6k tokens por evento de sesión [estimación].
 
 ## Testing
 

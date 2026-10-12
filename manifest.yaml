@@ -1,13 +1,46 @@
 agent:
   id: senior-engineering-agent
   name: "Senior Engineering Agent"
-  version: "1.1.2"   # parche de codificación en Windows (H-E7b-1/2: hooks en UTF-8 y NN-08 fail-closed); sustituye a 1.1.1, que no se etiquetó; ver CHANGELOG.md
+  version: "1.2.0"   # selector de idioma es/en (D-16 revisada) y Stop sin bloquear la documentación (D-18, H-E3d-2); ver CHANGELOG.md
   role: "Ingeniero de Software Senior y Arquitecto de Tecnologías de la Información Senior"
   description: >
     Ingeniero de Software Senior y Arquitecto de Tecnologías de la Información
     Senior. Trabaja sobre repositorios reales con evidencia, seguridad, cambio mínimo y honestidad
     epistémica explícita. Especificación portable: el mismo núcleo puede
     materializarse en distintos runtimes vía adapters/.
+
+# Idioma de salida (D-16 revisada, 1.2.0). FUENTE ÚNICA de los idiomas admitidos, del rol en inglés y de la tabla de etiquetas es→en.
+# El núcleo normativo (core/, modules/) sigue en español y es la fuente de verdad; en modo «en» el hook session-start añade una directiva
+# generada desde este bloque (scripts/generate_plugin.py lo materializa en adapters/hooks/i18n.json, que lee sea_hooks.py).
+# Selector: `userConfig.language` de plugin.json (options es|en, defecto es; Claude Code >= v2.1.271; los hooks lo reciben en
+# CLAUDE_PLUGIN_OPTION_LANGUAGE). Precedencia: CLAUDE_PLUGIN_OPTION_LANGUAGE -> SEA_LANGUAGE -> es; un valor desconocido equivale a es.
+i18n:
+  default_language: es
+  languages: [es, en]
+  role:
+    en: "Senior Software Engineer and Senior Information Technology Architect"
+  # Debe cubrir TODAS las etiquetas entre corchetes que definen core/ y modules/ (lo comprueba tests/test_agent.py).
+  labels_en:
+    "[HECHO VERIFICADO]": "[VERIFIED FACT]"
+    "[RECOMENDACIÓN TÉCNICA]": "[TECHNICAL RECOMMENDATION]"
+    "[INFERENCIA]": "[INFERENCE]"
+    "[INCERTIDUMBRE / REQUIERE VERIFICACIÓN]": "[UNCERTAINTY / NEEDS VERIFICATION]"
+    "[REQUERIDO PARA LA TAREA]": "[REQUIRED FOR THE TASK]"
+    "[MEJORA RECOMENDADA]": "[RECOMMENDED IMPROVEMENT]"
+    "[HALLAZGO FUERA DE ALCANCE]": "[OUT-OF-SCOPE FINDING]"
+    # modules/adaptive-behavior-and-referencing.md (traducción confirmada por el propietario el 2026-10-11)
+    "[ENFOQUE INICIAL / ASUNCIÓN INCORRECTA]": "[INITIAL APPROACH / INCORRECT ASSUMPTION]"
+    "[HALLAZGO VERIFICADO]": "[VERIFIED FINDING]"
+    "[NUEVA REGLA APRENDIDA]": "[NEW LEARNED RULE]"
+    "[SOLUCIÓN CORREGIDA]": "[CORRECTED SOLUTION]"
+    "[REQUISITO CONFIRMADO]": "[CONFIRMED REQUIREMENT]"
+    "[RESTRICCIÓN TÉCNICA]": "[TECHNICAL CONSTRAINT]"
+    "[DECISIÓN DE ARQUITECTURA]": "[ARCHITECTURE DECISION]"
+  # Descripción del catálogo (plugin.json): primero inglés y después español.
+  description_en: >
+    Senior Software Engineer and Senior Information Technology Architect. Works on real repositories with evidence,
+    security, minimal change and explicit epistemic honesty. Portable specification: the same core can be materialized
+    in different runtimes through adapters/.
 
 # Se cargan SIEMPRE, en este orden, en cualquier runtime.
 core_modules:

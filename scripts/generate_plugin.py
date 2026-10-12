@@ -6,8 +6,9 @@ templates/ y manifest.yaml). Mismo patrón que generate_skills.py: con --check
 no escribe nada y sale con 1 si hay deriva.
 
 Qué genera (documentación oficial: code.claude.com/docs/en/plugins-reference):
-  .claude-plugin/plugin.json   name, version (manifest.yaml), description, author,
-                               license, repository
+  .claude-plugin/plugin.json   name, version (manifest.yaml), description (inglés y
+                               después español), author, license, repository y
+                               userConfig.language (selector es|en, 1.2.0)
   skills/                      copia de adapters/skills/
   agents/                      copia de adapters/claude-code/agents/
   core/                        copia de manifest.yaml > core_modules (sin compact.md)
@@ -19,6 +20,10 @@ Qué genera (documentación oficial: code.claude.com/docs/en/plugins-reference):
                                py -3); si ninguno funciona, avisa y sale con 0
   hooks/hooks.json             un hook SessionStart POR ARCHIVO del núcleo (cat +
                                cabecera de parte) y los hooks de sea_hooks.py
+  adapters/hooks/i18n.json     idiomas, rol en inglés y tabla de etiquetas es→en
+                               (manifest.yaml > i18n); sea_hooks.py lo lee junto a sí
+                               mismo. También se escribe en el repositorio
+                               (adapters/hooks/i18n.json) para los demás runtimes.
 
 NO genera ni borra evals/ (casos de `claude plugin eval`, escritos a mano y
 versionados dentro del plugin) ni evals/results/ (no se versiona).
@@ -109,15 +114,38 @@ def tree_files(rel_dir):
     return sorted(out)
 
 
+def i18n_json(manifest):
+    """Contenido de adapters/hooks/i18n.json: lo que sea_hooks.py necesita de manifest.yaml > i18n."""
+    i18n = manifest["i18n"]
+    return {
+        "default_language": i18n["default_language"],
+        "languages": list(i18n["languages"]),
+        "role": dict(i18n["role"]),
+        "labels_en": dict(i18n["labels_en"]),
+    }
+
+
 def plugin_json(manifest):
     agent = manifest["agent"]
+    i18n = manifest["i18n"]
     return {
         "name": agent["id"],
         "version": agent["version"],
-        "description": " ".join(str(agent["description"]).split()),
+        # Catálogo bilingüe: primero inglés y después español.
+        "description": " ".join(str(i18n["description_en"]).split()) + " / " + " ".join(str(agent["description"]).split()),
         "author": AUTHOR,
         "license": LICENSE_ID,
         "repository": REPOSITORY,
+        "userConfig": {
+            "language": {
+                "type": "string",
+                "title": "Language / Idioma",
+                "description": "Language of the agent's replies and hook messages (es = Español, en = English). "
+                               "Idioma de las respuestas del agente y de los mensajes de los hooks. Requires Claude Code v2.1.271+.",
+                "options": list(i18n["languages"]),
+                "default": i18n["default_language"],
+            }
+        },
     }
 
 
@@ -170,9 +198,17 @@ def expected_files():
         files[core_path] = read_bytes(core_path)
     files["LICENSE"] = read_bytes("LICENSE")  # CC BY-NC exige que la licencia acompañe a la copia
     files["adapters/hooks/sea_hooks.py"] = read_bytes("adapters/hooks/sea_hooks.py")
+    files["adapters/hooks/i18n.json"] = dump_json(i18n_json(manifest))
     for src in tree_files("project-knowledge-templates"):
         files[src] = read_bytes(src)
     return files
+
+
+REPO_DERIVED = ("adapters/hooks/i18n.json",)  # vistas derivadas que viven en el repositorio (no en el plugin)
+
+
+def expected_repo_files():
+    return {"adapters/hooks/i18n.json": dump_json(i18n_json(load_manifest()))}
 
 
 def existing_files():
@@ -210,6 +246,20 @@ def main():
         if rel.endswith(".sh"):
             os.chmod(path, 0o755)
         print(f"Regenerado:     {shown}")
+    for rel, content in sorted(expected_repo_files().items()):
+        path = os.path.join(ROOT, rel)
+        current = open(path, "rb").read() if os.path.isfile(path) else None
+        if current == content:
+            print(f"Al día:         {rel}")
+            continue
+        drift += 1
+        if check:
+            print(f"DESINCRONIZADO: {rel}")
+            continue
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "wb") as f:
+            f.write(content)
+        print(f"Regenerado:     {rel}")
     for rel in sorted(set(present) - set(expected)):
         drift += 1
         path = os.path.join(PLUGIN_DIR, rel)
