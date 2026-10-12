@@ -1266,7 +1266,7 @@ if pj is not None:
     check("plugin.json: license == Apache-2.0 (SPDX) y el plugin lleva LICENSE y NOTICE idénticos a los de la raíz (D-22)",
           pj.get("license") == "Apache-2.0" and read(f"{PLUGIN_REL}/LICENSE") == read("LICENSE") and read(f"{PLUGIN_REL}/NOTICE") == read("NOTICE"), str(pj.get("license")))
     check("plugin.json: no usa campos fuera de la documentación oficial",
-          set(pj) <= {"name", "displayName", "version", "description", "author", "homepage", "license", "repository", "userConfig"}, str(sorted(pj)))
+          set(pj) <= {"name", "displayName", "version", "description", "author", "homepage", "license", "repository", "userConfig", "privacyPolicyUrl", "supportUrl"}, str(sorted(pj)))
 
 # Contenido del plugin: núcleo sin compact.md, los 2 subagentes, las 7 Skills, plantillas junto a sea_hooks.py
 check("El plugin incluye core/00..05 y NO core/compact.md",
@@ -2042,7 +2042,7 @@ check("adapters/hooks/i18n.json (repo y plugin) coincide con manifest.yaml > i18
 _uc = ((pj or {}).get("userConfig") or {}).get("language") or {}
 check("plugin.json: userConfig.language = selector (type string, options es/en, default es, title y description) sin campos fuera de la documentación",
       _uc.get("type") == "string" and _uc.get("options") == ["es", "en"] and _uc.get("default") == "es" and _uc.get("title") and _uc.get("description")
-      and set(_uc) <= {"type", "title", "description", "options", "default"} and "v2.1.271" in _uc.get("description", "") and set(pj) <= {"name", "displayName", "version", "description", "author", "homepage", "license", "repository", "userConfig"},
+      and set(_uc) <= {"type", "title", "description", "options", "default"} and "v2.1.271" in _uc.get("description", "") and set(pj) <= {"name", "displayName", "version", "description", "author", "homepage", "license", "repository", "userConfig", "privacyPolicyUrl", "supportUrl"},
       str(_uc))
 _pd, _md = (pj or {}).get("description", ""), mj["plugins"][0]["description"]
 check("Catálogo bilingüe (A5): plugin.json y marketplace.json describen primero en inglés y después en español",

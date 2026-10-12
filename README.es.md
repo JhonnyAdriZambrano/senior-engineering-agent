@@ -58,6 +58,7 @@ senior-engineering-agent/
 ├── SPECIFICATION.md             arquitectura completa, contrato del agente
 ├── LICENSE                      Apache-2.0 (texto oficial íntegro)
 ├── NOTICE                       aviso de copyright y de la licencia
+├── PRIVACY.md                   política de privacidad (enlazada desde plugin.json)
 ├── manifest.yaml                identidad, versión, índice de módulos
 ├── capabilities.yaml            capacidades abstractas → binding por runtime
 ├── .gitattributes               fin de línea LF (portabilidad en Windows)

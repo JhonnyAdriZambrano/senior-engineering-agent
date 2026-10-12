@@ -139,6 +139,8 @@ def plugin_json(manifest):
         "homepage": agent["homepage"],  # URL de documentación; debe parsear como URL o el plugin no carga
         "license": LICENSE_ID,
         "repository": REPOSITORY,
+        "privacyPolicyUrl": agent["homepage"] + "/blob/main/PRIVACY.md",
+        "supportUrl": agent["homepage"] + "/issues",
         "userConfig": {
             "language": {
                 "type": "string",

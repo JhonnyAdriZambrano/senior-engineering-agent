@@ -9,6 +9,8 @@
   "homepage": "https://github.com/JhonnyAdriZambrano/senior-engineering-agent",
   "license": "Apache-2.0",
   "repository": "https://github.com/JhonnyAdriZambrano/senior-engineering-agent",
+  "privacyPolicyUrl": "https://github.com/JhonnyAdriZambrano/senior-engineering-agent/blob/main/PRIVACY.md",
+  "supportUrl": "https://github.com/JhonnyAdriZambrano/senior-engineering-agent/issues",
   "userConfig": {
     "language": {
       "type": "string",
