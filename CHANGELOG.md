@@ -22,6 +22,10 @@ código ejecutable), MAJOR/MINOR/PATCH se interpretan así:
 cambios de comportamiento. La etiqueta `1.0.0` se asignó el 2026-10-09 al
 cumplirse la *Puerta de salida hacia 1.0.0* (más abajo).
 
+## [Sin publicar]
+
+- GitHub Sponsors: botón de patrocinio y enlace en los README (sin cambio de versión).
+
 ## [1.2.1] — 2026-10-11
 
 Versión PATCH: visibilidad y metadatos del plugin. **No cambia `core/`, `modules/`, las reglas NN, `sea_hooks.py`, `hooks.json` ni las descripciones de las Skills** (cambia la licencia, ver «Cambiado»). La etiqueta `v1.2.1` la crea el

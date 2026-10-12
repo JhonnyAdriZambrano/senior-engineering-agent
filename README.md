@@ -294,3 +294,5 @@ as long as the license and notice are kept. **Versions up to and including 1.2.0
 
 The project is free and open. On request I offer services to adapt the agent to enterprise stacks, plus support and training.
 Contact: open an Issue in the repository.
+
+Sponsor the project on [GitHub Sponsors](https://github.com/sponsors/JhonnyAdriZambrano).
