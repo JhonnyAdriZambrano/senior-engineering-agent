@@ -6,16 +6,17 @@ templates/ y manifest.yaml). Mismo patrón que generate_skills.py: con --check
 no escribe nada y sale con 1 si hay deriva.
 
 Qué genera (documentación oficial: code.claude.com/docs/en/plugins-reference):
-  .claude-plugin/plugin.json   name, version (manifest.yaml), description (inglés y
-                               después español), author, license, repository y
-                               userConfig.language (selector es|en, 1.2.0)
+  .claude-plugin/plugin.json   name, displayName y homepage (manifest.yaml, 1.2.1), version,
+                               description (inglés y después español), author, license,
+                               repository y userConfig.language (selector es|en, 1.2.0)
+  README.md                    portada del plugin (plantilla PLUGIN_README de este script)
   skills/                      copia de adapters/skills/
   agents/                      copia de adapters/claude-code/agents/
   core/                        copia de manifest.yaml > core_modules (sin compact.md)
   adapters/hooks/sea_hooks.py  y project-knowledge-templates/ con la MISMA ruta
                                relativa: sea_hooks.py localiza las plantillas tres
                                niveles por encima de sí mismo
-  LICENSE                      copia de la licencia (CC BY-NC 4.0)
+  LICENSE, NOTICE              copia de la licencia (Apache-2.0, desde 1.2.1) y del aviso
   scripts/sea-python.sh        lanzador del intérprete de Python (python3, python,
                                py -3); si ninguno funciona, avisa y sale con 0
   hooks/hooks.json             un hook SessionStart POR ARCHIVO del núcleo (cat +
@@ -45,7 +46,7 @@ PLUGIN_DIR = os.path.join(ROOT, "plugins", "claude-code", "senior-engineering-ag
 UNMANAGED = ("evals",)  # carpeta de primer nivel que el generador no toca
 
 AUTHOR = {"name": "Jhonny Adrian Zambrano Gonzalez"}  # README.md, «Autoría»
-LICENSE_ID = "CC-BY-NC-4.0"  # identificador SPDX de LICENSE (raíz del repo)
+LICENSE_ID = "Apache-2.0"  # identificador SPDX de LICENSE (raíz del repo)
 REPOSITORY = "https://github.com/JhonnyAdriZambrano/senior-engineering-agent"
 SESSION_MATCHERS = ("startup", "clear", "compact")
 HEADER = "[Núcleo SEA — parte {n} de {total} (orden canónico 00→05): {file}]"
@@ -130,10 +131,12 @@ def plugin_json(manifest):
     i18n = manifest["i18n"]
     return {
         "name": agent["id"],
+        "displayName": agent["name"],  # https://code.claude.com/docs/en/plugins/manifest-reference (campo displayName)
         "version": agent["version"],
         # Catálogo bilingüe: primero inglés y después español.
         "description": " ".join(str(i18n["description_en"]).split()) + " / " + " ".join(str(agent["description"]).split()),
         "author": AUTHOR,
+        "homepage": agent["homepage"],  # URL de documentación; debe parsear como URL o el plugin no carga
         "license": LICENSE_ID,
         "repository": REPOSITORY,
         "userConfig": {
@@ -147,6 +150,62 @@ def plugin_json(manifest):
             }
         },
     }
+
+
+PLUGIN_README = """# {name}
+
+> Senior Software Engineer and Senior Information Technology Architect for Claude Code. Version {version}.
+
+**What it is.** A Claude Code plugin that loads a senior-engineering core (identity, non-negotiable rules, certainty
+labels, task workflows) at session start, plus 7 Skills, 2 read-only subagents and deterministic hooks. It works on
+real repositories with evidence, security, minimal change and explicit epistemic honesty.
+
+**Qué es (español).** Plugin de Claude Code que carga al iniciar la sesión un núcleo de ingeniería senior (identidad,
+reglas no negociables, etiquetas de certeza y workflows), con 7 Skills, 2 subagentes de solo lectura y hooks
+deterministas. El núcleo normativo está en español; el selector de idioma permite respuestas en inglés.
+
+## Install
+
+```bash
+claude plugin marketplace add JhonnyAdriZambrano/senior-engineering-agent
+claude plugin install {id}@{id}
+```
+
+## Language selector (es / en)
+
+Open `/config` and pick `es` (default) or `en` under this plugin's `language` option, then start a new session.
+In `en` mode the agent answers in English and uses English labels; the normative core stays in Spanish.
+
+## Requirements
+
+- Claude Code **v2.1.271 or later** (the plugin declares `userConfig.options`; older versions cannot load it).
+- Python 3.8+ (the hooks run `scripts/sea-python.sh`).
+- On Windows: **Git Bash** (the hook launcher is a bash script).
+
+## Deterministic guarantees
+
+Hooks are code that runs regardless of what the model decides:
+
+- **NN-08** — asks for human confirmation before destructive shell commands (`Bash` and `PowerShell` tools); fail-closed.
+- **NN-06b** — reports lines in `PROJECT_CONTEXT.md` / `ARCHITECTURE.md` / `DECISIONS.md` that look like orders to the agent
+  (those files are data, not instructions).
+- **Stop** — if the turn edited code without evidence of validation, blocks once and asks to validate or say why not
+  (documentation-only edits are exempt).
+
+## More
+
+- Repository, full documentation and specification: {homepage}
+- Measured results and their limitations: {measurements}
+- License: [Apache-2.0](https://www.apache.org/licenses/LICENSE-2.0) from 1.2.1 (see the `LICENSE` and `NOTICE` files in this folder). Versions up to and including 1.2.0 were released under CC BY-NC 4.0.
+"""
+
+
+def plugin_readme(manifest):
+    agent = manifest["agent"]
+    return PLUGIN_README.format(
+        name=agent["name"], version=agent["version"], id=agent["id"], homepage=agent["homepage"],
+        measurements=agent["homepage"] + "/blob/main/docs/MEASUREMENTS.md",
+    )
 
 
 def core_command(n, total, core_path):
@@ -196,7 +255,9 @@ def expected_files():
         files["agents/" + src[len("adapters/claude-code/agents/"):]] = read_bytes(src)
     for core_path in manifest["core_modules"]:
         files[core_path] = read_bytes(core_path)
-    files["LICENSE"] = read_bytes("LICENSE")  # CC BY-NC exige que la licencia acompañe a la copia
+    files["README.md"] = plugin_readme(manifest).encode("utf-8")
+    files["LICENSE"] = read_bytes("LICENSE")  # Apache-2.0 exige entregar la licencia con toda redistribución
+    files["NOTICE"] = read_bytes("NOTICE")  # y conservar el NOTICE (Apache-2.0, sección 4.d)
     files["adapters/hooks/sea_hooks.py"] = read_bytes("adapters/hooks/sea_hooks.py")
     files["adapters/hooks/i18n.json"] = dump_json(i18n_json(manifest))
     for src in tree_files("project-knowledge-templates"):

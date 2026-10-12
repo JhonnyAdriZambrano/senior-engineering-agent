@@ -75,7 +75,7 @@ git config user.name "bench"
 # --- 1. Instalar el agente (misma lista que el ZIP de distribución) ---
 mkdir -p "${PKG}"
 for p in core modules adapters project-knowledge-templates docs manifest.yaml \
-         capabilities.yaml SPECIFICATION.md README.md CHANGELOG.md LICENSE; do
+         capabilities.yaml SPECIFICATION.md README.md README.es.md CHANGELOG.md LICENSE NOTICE; do
   cp -R "${SPEC_ROOT}/${p}" "${PKG}/${p}"
 done
 mkdir -p .claude/skills .claude/agents

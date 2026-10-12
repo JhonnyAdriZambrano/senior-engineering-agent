@@ -47,12 +47,14 @@ usando el mecanismo nativo de esa plataforma.
 
 ```
 senior-engineering-agent/
-├── README.md                         punto de entrada para una persona nueva
+├── README.md                         punto de entrada para una persona nueva (inglés)
+├── README.es.md                      el mismo punto de entrada en español
 ├── CHANGELOG.md                       historial de versiones y política de versionado
 ├── SPECIFICATION.md                   este documento — contrato del agente
 ├── manifest.yaml                     identidad, versión, índice de módulos
 ├── capabilities.yaml                 capacidades abstractas → binding por runtime
-├── LICENSE                            CC BY-NC 4.0 + aclaraciones del autor
+├── LICENSE                            Apache-2.0 (desde 1.2.1; las versiones ≤ 1.2.0 son CC BY-NC 4.0)
+├── NOTICE                             aviso de copyright y de la licencia
 ├── .gitignore / .env.example          higiene de Git (sin secretos)
 ├── .gitattributes                     fin de línea LF (portabilidad en Windows)
 ├── .github/workflows/structural-tests.yml  CI: suite estructural en cada push/PR, en Linux y Windows (sin LLM)
@@ -419,8 +421,8 @@ externo que ya no existe; las mitigaciones están en el núcleo
 
 ## 9. Próximos pasos
 
-Estado (versión 1.2.0; puerta de salida hacia 1.0.0 cumplida el 2026-10-09; la
-de 1.1.0, la de 1.1.2 y la de 1.2.0 están definidas en `CHANGELOG.md`; 1.1.1 no se etiquetó): instalación como plugin de Claude Code
+Estado (versión 1.2.1; puerta de salida hacia 1.0.0 cumplida el 2026-10-09; la
+de 1.1.0, la de 1.1.2, la de 1.2.0 y la de 1.2.1 están definidas en `CHANGELOG.md`; 1.1.1 no se etiquetó): instalación como plugin de Claude Code
 (vía principal) y documentada por runtime, Skills generadas y compartidas por
 Claude Code, Codex, Cursor y Gemini CLI, Subagents de solo lectura, tests
 estructurales, script de sandbox para el benchmark, núcleo compacto

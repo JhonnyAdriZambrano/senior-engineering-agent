@@ -22,6 +22,40 @@ código ejecutable), MAJOR/MINOR/PATCH se interpretan así:
 cambios de comportamiento. La etiqueta `1.0.0` se asignó el 2026-10-09 al
 cumplirse la *Puerta de salida hacia 1.0.0* (más abajo).
 
+## [1.2.1] — 2026-10-11
+
+Versión PATCH: visibilidad y metadatos del plugin. **No cambia `core/`, `modules/`, las reglas NN, `sea_hooks.py`, `hooks.json` ni las descripciones de las Skills** (cambia la licencia, ver «Cambiado»). La etiqueta `v1.2.1` la crea el
+propietario al cumplir la *Puerta de salida hacia 1.2.1* (más abajo); este cambio no crea etiquetas.
+
+### Cambiado
+
+- **Licencia: CC BY-NC 4.0 → Apache-2.0 desde 1.2.1 (D-22; las versiones anteriores conservan su licencia).** `LICENSE` pasa a ser el texto oficial íntegro de
+  <https://www.apache.org/licenses/LICENSE-2.0.txt> (descargado, no reescrito) y se añade `NOTICE` en la raíz. El plugin generado incluye ambos (`generate_plugin.py`; `--check` los cubre) y
+  `plugin.json` declara `"license": "Apache-2.0"` (SPDX). `build_zip.sh` y el sandbox incluyen `NOTICE`. `README.md` y `README.es.md` actualizan la sección de licencia y añaden «Support / Apoyo»
+  (servicios de adaptación, soporte y formación bajo petición; contacto: Issue del repositorio, sin `FUNDING.yml` ni Sponsors). Pruebas de licencia ajustadas (hash del texto oficial, `NOTICE`, SPDX).
+- **Portada en inglés (D-20):** `README.md` pasa a ser la versión en inglés (antes `README.en.md`) y el español pasa a `README.es.md` (antes `README.md`); ambos se enlazan en su primera línea.
+  Actualizadas las referencias vigentes (`docs/MEASUREMENTS.md`, `SPECIFICATION.md §2`, `scripts/build_zip.sh`, `tests/sandbox/setup_sandbox.sh` y `tests/test_agent.py`: árbol del README, conteos y
+  anti-marcadores, enlaces cruzados). Las entradas históricas de este archivo no se reescriben: las menciones a `README.en.md` de 1.2.0 son correctas para esa versión.
+- **Metadatos de `plugin.json` (D-21):** `displayName` («Senior Engineering Agent», de `manifest.yaml > agent.name`) y `homepage` (de `manifest.yaml > agent.homepage`), generados por
+  `scripts/generate_plugin.py`. Ambos campos figuran en la tabla de campos de <https://code.claude.com/docs/en/plugins/manifest-reference> («`displayName`: name shown in UI in place of `name`»;
+  «`homepage`: documentation URL»). La entrada de `marketplace.json` no define `displayName`, así que no lo sobrescribe.
+- **README del plugin:** `plugins/claude-code/senior-engineering-agent/README.md`, breve y en inglés con un párrafo en español (qué es, instalación, selector de idioma, requisitos, garantías
+  deterministas, mediciones y licencia). Lo genera `generate_plugin.py` (plantilla `PLUGIN_README`) y lo cubre `--check`.
+- `manifest.yaml > agent.version` = 1.2.1 y vistas regeneradas (`plugin.json` = 1.2.1).
+
+### Sin evals con modelo
+
+El comportamiento no cambia: el contenido que llega al modelo (`core/`, Skills, agentes, hooks y `sea_hooks.py`) es byte a byte el de 1.2.0 y solo cambian metadatos y documentación, así que las
+mediciones de 1.2.0 (`docs/MEASUREMENTS.md`) siguen vigentes y no se repiten.
+
+### Puerta de salida hacia 1.2.1
+
+La etiqueta `v1.2.1` solo se asigna cuando se cumplen TODOS estos puntos:
+
+1. Suite estructural (`py -3 tests/test_agent.py`), los tres `--check` (`generate_skills.py`, `generate_compact.py`, `generate_plugin.py`) y `claude plugin validate --strict` (plugin y marketplace) en verde.
+2. CI en verde en Linux y Windows sobre el commit a etiquetar.
+3. Aceptación práctica en el PC: `claude plugin update` → 1.2.1, el nombre visible del plugin en `/plugin` («Senior Engineering Agent») y `bash tests/acceptance/hooks_practice.sh` 9/9.
+
 ## [1.2.0] — 2026-10-11
 
 Versión MINOR: selector de idioma (es/en, D-16 revisada) y el hook `Stop` deja de bloquear la edición de documentación (D-18). **No cambia el contenido normativo de `core/` ni de

@@ -1,7 +1,9 @@
 agent:
   id: senior-engineering-agent
   name: "Senior Engineering Agent"
-  version: "1.2.0"   # selector de idioma es/en (D-16 revisada) y Stop sin bloquear la documentación (D-18, H-E3d-2); ver CHANGELOG.md
+  version: "1.2.1"   # parche: portada README.md en inglés (D-20), displayName/homepage y README del plugin (D-21); ver CHANGELOG.md
+  # Metadatos del plugin (D-21): `name` es el displayName de plugin.json; `homepage` es su URL de documentación.
+  homepage: "https://github.com/JhonnyAdriZambrano/senior-engineering-agent"
   role: "Ingeniero de Software Senior y Arquitecto de Tecnologías de la Información Senior"
   description: >
     Ingeniero de Software Senior y Arquitecto de Tecnologías de la Información

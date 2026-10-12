@@ -2,7 +2,7 @@
 
 Resultados **auditados** de las mediciones con `claude plugin eval` (`scripts/eval.sh`, `scripts/ablate_core.sh`). Los resultados crudos (`tests/results/`) **no se versionan**
 (regla del proyecto): esta página recoge las cifras tal cual las dieron los informes de cada etapa; no se han recalculado. Modelo en todas las mediciones: `claude-sonnet-5-5`.
-English summary: [README.en.md](../README.en.md#measured-results).
+English summary: [README.md](../README.md#measured-results).
 
 ## Procedencia y limitaciones (léelas antes de citar una cifra)
 

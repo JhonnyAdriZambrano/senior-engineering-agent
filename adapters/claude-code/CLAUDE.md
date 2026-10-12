@@ -16,7 +16,7 @@ generada** por `python3 scripts/generate_plugin.py` (`--check` en CI y en
 - `core/00…05` y `hooks/hooks.json`, `adapters/hooks/sea_hooks.py`,
   `project-knowledge-templates/` (misma ruta relativa: `sea_hooks.py` busca las
   plantillas tres niveles por encima de sí mismo), `scripts/sea-python.sh`,
-  `LICENSE` y `evals/` (casos de `claude plugin eval`, escritos a mano).
+  `LICENSE`, `NOTICE` y `evals/` (casos de `claude plugin eval`, escritos a mano).
 
 **El núcleo se inyecta con un hook `SessionStart` por archivo de `core/`**
 (matchers `startup`, `clear` y `compact`): cada uno hace `cat` del archivo,

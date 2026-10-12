@@ -16,6 +16,7 @@ determinismo del empaquetado.
 Uso: python3 tests/test_agent.py
 Código de salida: 0 si todo pasa, 1 si algo falla.
 """
+import hashlib
 import os
 import re
 import sys
@@ -116,6 +117,10 @@ for a in ADAPTERS:
     check(f"Adaptador existe: {a}", exists(a), "adaptador esperado no encontrado")
 
 check("LICENSE existe", exists("LICENSE"), "falta el archivo de licencia")
+check("LICENSE es el texto oficial íntegro de Apache-2.0 (D-22) y NOTICE declara Apache-2.0 y las versiones ≤ 1.2.0 bajo CC BY-NC 4.0",
+      hashlib.sha256(open(os.path.join(ROOT, "LICENSE"), "rb").read()).hexdigest() == "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+      and exists("NOTICE") and "Copyright 2026 Jhonny Adrian Zambrano Gonzalez" in read("NOTICE") and "Apache License, Version 2.0" in read("NOTICE")
+      and "up to and including 1.2.0" in read("NOTICE") and "CC BY-NC 4.0" in read("NOTICE"), "LICENSE alterada o NOTICE incompleto")
 check(
     "LICENSE no tiene placeholders de nombre/handle sin resolver",
     "[NOMBRE" not in read("LICENSE") and "[HANDLE" not in read("LICENSE"),
@@ -261,7 +266,7 @@ print("   (esta prueba habría detectado el hallazgo ALTO #1: referencia a SPEC_
 # ---------------------------------------------------------------------------
 # Nombres de archivo de nivel de paquete que, si se mencionan entre backticks,
 # deben resolver a un archivo real en la raíz del paquete.
-PACKAGE_LEVEL_FILES = {"SPECIFICATION.md", "manifest.yaml", "capabilities.yaml", "README.md", "CHANGELOG.md"}
+PACKAGE_LEVEL_FILES = {"SPECIFICATION.md", "manifest.yaml", "capabilities.yaml", "README.md", "README.es.md", "CHANGELOG.md"}
 broken_refs = []
 for dirpath, _, filenames in os.walk(ROOT):
     if "/.git" in dirpath:
@@ -441,7 +446,7 @@ print("\n== 10. Rol canónico: una sola cadena, sin abreviar, en todas partes ==
 role = manifest["agent"].get("role", "")
 check("manifest.yaml define agent.role", bool(role), "falta agent.role")
 if role:
-    for f in ["core/00-identity.md", "core/compact.md", "tests/BENCHMARK.md", "README.md", "manifest.yaml"]:
+    for f in ["core/00-identity.md", "core/compact.md", "tests/BENCHMARK.md", "README.es.md", "manifest.yaml"]:
         check(f"Rol canónico presente en {f}", role in " ".join(read(f).split()), "no contiene la cadena canónica completa (se ignoran saltos de línea)")
     abbreviated = []
     for base in ["core", "modules", "adapters"]:
@@ -479,8 +484,8 @@ m_bench = re.search(r"^(\d+) pruebas", bench, re.M)
 check("BENCHMARK.md: conteo declarado == encabezados TEST-XX", bool(m_bench) and int(m_bench.group(1)) == n_tests, f"declara {m_bench.group(1) if m_bench else None}, hay {n_tests}")
 m_man = re.search(r"como (\d+) pruebas", read("tests/MANUAL_SCENARIOS.md"))
 check("MANUAL_SCENARIOS.md: conteo declarado == encabezados TEST-XX", bool(m_man) and int(m_man.group(1)) == n_tests, f"declara {m_man.group(1) if m_man else None}, hay {n_tests}")
-m_readme = re.search(r"(\d+) pruebas formales", read("README.md"))
-check("README.md: conteo de pruebas formales == encabezados TEST-XX", bool(m_readme) and int(m_readme.group(1)) == n_tests, f"declara {m_readme.group(1) if m_readme else None}, hay {n_tests}")
+m_readme = re.search(r"(\d+) pruebas formales", read("README.es.md"))
+check("README.es.md: conteo de pruebas formales == encabezados TEST-XX", bool(m_readme) and int(m_readme.group(1)) == n_tests, f"declara {m_readme.group(1) if m_readme else None}, hay {n_tests}")
 
 # ---------------------------------------------------------------------------
 print("\n== 12. Redacción de reglas y contenido de seguridad ==")
@@ -650,7 +655,7 @@ for name in codex_agents:
 # 15.d Conteos de pruebas escritos en prosa: deben coincidir con los
 # encabezados TEST-XX de BENCHMARK.md ('otras N' == total - 1; 'X de N' == total).
 prose_bad = []
-for f in ["README.md", "SPECIFICATION.md", "tests/BENCHMARK.md", "tests/GUIA_BENCHMARK.md", "tests/MANUAL_SCENARIOS.md"]:
+for f in ["README.es.md", "SPECIFICATION.md", "tests/BENCHMARK.md", "tests/GUIA_BENCHMARK.md", "tests/MANUAL_SCENARIOS.md"]:
     t = " ".join(read(f).split())
     for m in re.finditer(r"(otras )?\b(\d+) (?:pruebas|registros)\b", t):
         expected = n_tests - 1 if m.group(1) else n_tests
@@ -1251,8 +1256,17 @@ if pj is not None:
     check("plugin.json: description, author.name, license y repository presentes",
           all([pj.get("description"), (pj.get("author") or {}).get("name") == "Jhonny Adrian Zambrano Gonzalez", pj.get("license"), pj.get("repository")]),
           str(sorted(pj)))
+    check("plugin.json: displayName == agent.name y homepage == agent.homepage (D-21, campos de manifest-reference)",
+          pj.get("displayName") == manifest["agent"]["name"] == "Senior Engineering Agent" and pj.get("homepage") == manifest["agent"]["homepage"]
+          and pj["homepage"].startswith("https://"), str(sorted(pj)))
+    _prd = read(f"{PLUGIN_REL}/README.md") if exists(f"{PLUGIN_REL}/README.md") else ""
+    check("README del plugin (generado): instalación, selector, requisitos, NN-08/NN-06b/Stop, MEASUREMENTS y licencia",
+          all(k in _prd for k in ("claude plugin marketplace add JhonnyAdriZambrano/senior-engineering-agent", "claude plugin install senior-engineering-agent@senior-engineering-agent",
+                                  "/config", "v2.1.271", "Python 3.8+", "Git Bash", "NN-08", "NN-06b", "Stop", "docs/MEASUREMENTS.md", "Apache-2.0", "CC BY-NC 4.0", "(español)")), "falta algún apartado")
+    check("plugin.json: license == Apache-2.0 (SPDX) y el plugin lleva LICENSE y NOTICE idénticos a los de la raíz (D-22)",
+          pj.get("license") == "Apache-2.0" and read(f"{PLUGIN_REL}/LICENSE") == read("LICENSE") and read(f"{PLUGIN_REL}/NOTICE") == read("NOTICE"), str(pj.get("license")))
     check("plugin.json: no usa campos fuera de la documentación oficial",
-          set(pj) <= {"name", "version", "description", "author", "license", "repository", "userConfig"}, str(sorted(pj)))
+          set(pj) <= {"name", "displayName", "version", "description", "author", "homepage", "license", "repository", "userConfig"}, str(sorted(pj)))
 
 # Contenido del plugin: núcleo sin compact.md, los 2 subagentes, las 7 Skills, plantillas junto a sea_hooks.py
 check("El plugin incluye core/00..05 y NO core/compact.md",
@@ -1797,7 +1811,7 @@ else:
     check("Sin marcadores pendientes (TODO/FIXME/TBD/XXX, «motivo breve», «puede añadir uno aquí») en archivos versionados "
           "(salvo project-knowledge-templates/ y patrones <…>)", not _hits, ", ".join(_hits[:8]))
 
-    for _readme, _heading in (("README.md", "## Estructura del repositorio"), ("README.en.md", "## Repository structure")):
+    for _readme, _heading in (("README.es.md", "## Estructura del repositorio"), ("README.md", "## Repository structure")):
         _rd = read(_readme) if exists(_readme) else ""
         _blk = re.search(re.escape(_heading) + r"\n+```\n(.*?)\n```", _rd, re.S)
         _paths, _stack, _bad_tree = set(), [], []
@@ -1824,9 +1838,9 @@ else:
         _need = {n for n in _need if not n.endswith("__pycache__")}
         _miss = sorted(n for n in _need if n not in _paths and not any(p.startswith(n + "/") for p in _paths))
         check(f"{_readme}: cada directorio y script de primer nivel versionado aparece en el árbol", not _miss, ", ".join(_miss[:8]))
-    check("README.md y README.en.md se enlazan entre sí (primeras líneas) y README.md enlaza docs/MEASUREMENTS.md",
-          "(README.en.md)" in read("README.md").split("## Requisitos")[0] and "(README.md)" in read("README.en.md").split("## What it is")[0]
-          and "docs/MEASUREMENTS.md" in read("README.md") and "docs/MEASUREMENTS.md" in read("README.en.md") and exists("docs/MEASUREMENTS.md"), "enlace ausente")
+    check("README.md (inglés) y README.es.md se enlazan entre sí (primeras líneas) y ambos enlazan docs/MEASUREMENTS.md",
+          "(README.md)" in read("README.es.md").split("## Requisitos")[0] and "(README.es.md)" in read("README.md").split("## What it is")[0]
+          and "docs/MEASUREMENTS.md" in read("README.es.md") and "docs/MEASUREMENTS.md" in read("README.md") and exists("docs/MEASUREMENTS.md"), "enlace ausente")
 
 check(".gitignore ignora plugins/**/evals/results/", "plugins/**/evals/results/" in read(".gitignore"), "falta la regla")
 check("CI ejecuta generate_plugin.py --check", "generate_plugin.py --check" in read(".github/workflows/structural-tests.yml"), "falta en structural-tests.yml")
@@ -1992,15 +2006,15 @@ check("adapters/hooks/i18n.json (repo y plugin) coincide con manifest.yaml > i18
 _uc = ((pj or {}).get("userConfig") or {}).get("language") or {}
 check("plugin.json: userConfig.language = selector (type string, options es/en, default es, title y description) sin campos fuera de la documentación",
       _uc.get("type") == "string" and _uc.get("options") == ["es", "en"] and _uc.get("default") == "es" and _uc.get("title") and _uc.get("description")
-      and set(_uc) <= {"type", "title", "description", "options", "default"} and "v2.1.271" in _uc.get("description", "") and set(pj) <= {"name", "version", "description", "author", "license", "repository", "userConfig"},
+      and set(_uc) <= {"type", "title", "description", "options", "default"} and "v2.1.271" in _uc.get("description", "") and set(pj) <= {"name", "displayName", "version", "description", "author", "homepage", "license", "repository", "userConfig"},
       str(_uc))
 _pd, _md = (pj or {}).get("description", ""), mj["plugins"][0]["description"]
 check("Catálogo bilingüe (A5): plugin.json y marketplace.json describen primero en inglés y después en español",
       _pd.startswith("Senior Software Engineer") and _pd.index("Senior Software Engineer") < _pd.index("Ingeniero de Software") and _pd.endswith(" ".join(str(manifest["agent"]["description"]).split()))
       and _md.startswith("Senior Software Engineer") and _md.index("Senior Software Engineer") < _md.index("Ingeniero de Software")
       and mj["description"].startswith("Senior Engineering Agent marketplace") and "Marketplace del Senior Engineering Agent" in mj["description"], f"{_pd[:80]} | {_md[:80]}")
-check("La versión mínima de Claude Code (v2.1.271, options del userConfig) está documentada en README.md, README.en.md, SPECIFICATION.md y CHANGELOG.md",
-      all("2.1.271" in read(f) for f in ("README.md", "README.en.md", "SPECIFICATION.md", "CHANGELOG.md")), "falta en algún documento")
+check("La versión mínima de Claude Code (v2.1.271, options del userConfig) está documentada en README.md, README.es.md, SPECIFICATION.md y CHANGELOG.md",
+      all("2.1.271" in read(f) for f in ("README.md", "README.es.md", "SPECIFICATION.md", "CHANGELOG.md")), "falta en algún documento")
 
 # --- Stop no bloquea la documentación (D-18) ---
 IDO = _hkm.is_docs_only

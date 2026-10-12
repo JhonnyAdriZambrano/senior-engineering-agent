@@ -7,8 +7,8 @@
 #   dist  -> senior-engineering-agent-<versión>.zip
 #            Lo que un runtime consume: core/, modules/, adapters/,
 #            project-knowledge-templates/, docs/, manifest.yaml,
-#            capabilities.yaml, SPECIFICATION.md, README.md, CHANGELOG.md,
-#            LICENSE. Whitelist explícita (más seguro que "todo menos X").
+#            capabilities.yaml, SPECIFICATION.md, README.md, README.es.md, CHANGELOG.md,
+#            LICENSE, NOTICE. Whitelist explícita (más seguro que "todo menos X").
 #   repo  -> senior-engineering-agent-<versión>-REPO-COMPLETO.zip
 #            Repositorio completo para seguir desarrollando (incluye tests/ y
 #            scripts/). Excluye .git, dist/, cachés, *.zip, .env real y
@@ -44,7 +44,7 @@ fi
 
 DIST_INCLUDE=(core modules adapters project-knowledge-templates docs
               manifest.yaml capabilities.yaml SPECIFICATION.md README.md
-              CHANGELOG.md LICENSE)
+              README.es.md CHANGELOG.md LICENSE NOTICE)
 
 command -v zip >/dev/null || { echo "Falta la utilidad 'zip'." >&2; exit 2; }
 mkdir -p "${DIST_DIR}"
