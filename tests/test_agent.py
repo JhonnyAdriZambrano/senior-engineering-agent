@@ -847,7 +847,7 @@ check("settings.hooks.json (Claude Code) define Stop con el subcomando stop",
 check("Codex, Cursor y Gemini CLI no definen Stop (pendiente de verificar)",
       all("stop" not in k.lower() for rt_ in ("codex", "cursor", "gemini-cli") for k in _json.loads(read(HOOK_CONFIGS[rt_]))["hooks"]),
       "algún runtime distinto de Claude Code define un evento Stop")
-check("sea_hooks.py cita la URL oficial de hooks en el docstring", "code.claude.com/docs/en/hooks" in read("adapters/hooks/sea_hooks.py").split('"' * 3)[1])
+check("SPECIFICATION.md cita la documentación oficial de hooks (la cita ya no vive en sea_hooks.py)", "code.claude.com/docs/en/hooks" in read("SPECIFICATION.md"))
 
 # --- H-E7a-4: herramienta PowerShell de Claude Code (tool_input.command) ---
 def _ps(cmd):
@@ -1337,7 +1337,9 @@ _text_must_be_lf = [f for f in _tracked if f.endswith((".sh", ".py", ".json", ".
                     and exists(f) and not f.startswith("tests/results/")]
 _crlf = [f for f in _text_must_be_lf if b"\r" in open(os.path.join(ROOT, f), "rb").read()]
 check(f"Fin de línea LF en el árbol de trabajo ({len(_text_must_be_lf)} archivos de texto)", not _crlf, f"con CR: {_crlf[:5]}")
-_key = [f for f in _tracked if f.endswith(".sh") or os.path.basename(f) in ("hooks.json", "plugin.json") or f.startswith(PLUGIN_REL + "/")]
+_BINARY_EXT = (".png", ".jpg", ".jpeg", ".gif", ".ico", ".pdf", ".zip")  # los de .gitattributes: pueden contener 0x0D legítimo
+_key = [f for f in _tracked if not f.lower().endswith(_BINARY_EXT)
+        and (f.endswith(".sh") or os.path.basename(f) in ("hooks.json", "plugin.json") or f.startswith(PLUGIN_REL + "/"))]
 _key_crlf = [f for f in _key if exists(f) and b"\r" in open(os.path.join(ROOT, f), "rb").read()]
 check("Todos los *.sh, hooks.json, plugin.json y los archivos generados del plugin están en LF", len(_key) > 50 and not _key_crlf,
       f"{len(_key)} archivos revisados; con CR: {_key_crlf[:5]}")
@@ -1844,6 +1846,40 @@ else:
 
 check(".gitignore ignora plugins/**/evals/results/", "plugins/**/evals/results/" in read(".gitignore"), "falta la regla")
 check("CI ejecuta generate_plugin.py --check", "generate_plugin.py --check" in read(".github/workflows/structural-tests.yml"), "falta en structural-tests.yml")
+
+# ---------------------------------------------------------------------------
+print("\n== 18b. Icono del plugin y sea_hooks.py sin URL ni lecturas de entorno dinámicas (preparación del directorio) ==")
+# ---------------------------------------------------------------------------
+import struct as _struct
+import ast as _ast2
+
+
+def _png_info(path):
+    with open(path, "rb") as f_:
+        b_ = f_.read()
+    if b_[:8] != b"\x89PNG\r\n\x1a\n" or b_[12:16] != b"IHDR":
+        return None
+    w_, h_ = _struct.unpack(">II", b_[16:24])
+    return w_, h_, len(b_), b_
+
+
+_ic_src = _png_info(os.path.join(ROOT, "adapters", "claude-code", "icon.png"))
+_ic_plg = _png_info(os.path.join(PLUGIN, ".claude-plugin", "icon.png"))
+check("Icono del plugin: PNG cuadrado, 512–2048 px por lado y < 2 MB",
+      bool(_ic_plg) and _ic_plg[0] == _ic_plg[1] and 512 <= _ic_plg[0] <= 2048 and _ic_plg[2] < 2 * 1024 * 1024,
+      f"{_ic_plg[:3] if _ic_plg else 'no es PNG'}")
+check("Icono del plugin idéntico byte a byte al de adapters/claude-code/", bool(_ic_src and _ic_plg) and _ic_src[3] == _ic_plg[3], "difieren")
+_sea_src = read("adapters/hooks/sea_hooks.py")
+check("sea_hooks.py no contiene «https://» ni «code.claude.com» (las URL y hosts son referencias en texto)", "https://" not in _sea_src and "code.claude.com" not in _sea_src, "hay URL o host")
+_tree = _ast2.parse(_sea_src)
+_dyn = [n_.lineno for n_ in _ast2.walk(_tree) if isinstance(n_, _ast2.Call) and isinstance(n_.func, _ast2.Attribute)
+        and n_.func.attr in ("get", "getenv", "pop") and n_.args and not isinstance(n_.args[0], _ast2.Constant)
+        and ((isinstance(n_.func.value, _ast2.Name) and n_.func.value.id in ("env", "environ", "os"))
+             or (isinstance(n_.func.value, _ast2.Attribute) and n_.func.value.attr == "environ"))]
+_dyn += [n_.lineno for n_ in _ast2.walk(_tree) if isinstance(n_, _ast2.Subscript)
+         and ((isinstance(n_.value, _ast2.Attribute) and n_.value.attr == "environ") or (isinstance(n_.value, _ast2.Name) and n_.value.id in ("env", "environ")))
+         and not isinstance(n_.slice, _ast2.Constant)]
+check("sea_hooks.py no lee el entorno con nombre dinámico (solo literales)", not _dyn, f"líneas {_dyn}")
 
 # ---------------------------------------------------------------------------
 print("\n== 19. Selector de idioma es/en (D-16 revisada) y Stop sin bloquear la documentación (D-18) — 1.2.0, sin LLM ==")

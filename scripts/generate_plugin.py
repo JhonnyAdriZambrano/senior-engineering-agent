@@ -249,6 +249,7 @@ def expected_files():
     files[".claude-plugin/plugin.json"] = dump_json(plugin_json(manifest))
     files["hooks/hooks.json"] = dump_json(hooks_json(manifest))
     files["scripts/sea-python.sh"] = LAUNCHER.encode("utf-8")
+    files[".claude-plugin/icon.png"] = read_bytes("adapters/claude-code/icon.png")  # icono del plugin (directorio de plugins)
     for src in tree_files("adapters/skills"):
         files["skills/" + src[len("adapters/skills/"):]] = read_bytes(src)
     for src in tree_files("adapters/claude-code/agents"):

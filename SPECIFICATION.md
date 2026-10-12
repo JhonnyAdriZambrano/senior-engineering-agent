@@ -345,7 +345,8 @@ esa plataforma, que este manifiesto no puede anular.
 **Plugin de Claude Code (vista generada).** Distribuye el núcleo con un hook
 `SessionStart` por archivo de `core/` (matchers `startup`, `clear`, `compact`),
 porque la salida de un hook se limita a 10.000 caracteres
-(`code.claude.com/docs/en/hooks`). Todos los hooks que coinciden con un evento
+(`code.claude.com/docs/en/hooks`). El directorio de datos del plugin llega a los hooks en
+`${CLAUDE_PLUGIN_DATA}` (`code.claude.com/docs/en/plugins-reference#environment-variables`). Todos los hooks que coinciden con un evento
 corren en paralelo y la documentación no garantiza su orden: el orden de
 llegada de las seis partes del núcleo (y del aviso de `session-start`) **no está
 garantizado**. Cada parte lleva la cabecera `[Núcleo SEA — parte X de 6 (orden

@@ -24,7 +24,7 @@ Codificación (H-E7b-1/2): stdin se lee como bytes y se decodifica como UTF-8; s
   toda la salida JSON es ASCII puro (ensure_ascii=True), válida en cualquier codificación de la tubería. La salida de
   texto plano (SessionStart de Claude Code y Codex) sale en UTF-8 gracias a la reconfiguración.
 Idioma (D-16 revisada, 1.2.0): selector `language` (es|en, defecto es) de `userConfig` en plugin.json; Claude Code ≥ v2.1.271 lo
-  entrega a los hooks en CLAUDE_PLUGIN_OPTION_LANGUAGE (https://code.claude.com/docs/en/plugins/manifest-reference, «User configuration»).
+  entrega a los hooks en CLAUDE_PLUGIN_OPTION_LANGUAGE (documentación oficial del manifiesto de plugins de Claude Code, sección «User configuration»).
   Precedencia (claude-code): CLAUDE_PLUGIN_OPTION_LANGUAGE → SEA_LANGUAGE → «es»; los demás runtimes: SEA_LANGUAGE → «es». Un valor
   desconocido equivale a «es». En «es» la salida de session-start y pre-tool es IDÉNTICA byte a byte a la de 1.1.2. En «en», session-start
   añade una directiva (responder en inglés, rol literal en inglés, tabla de etiquetas es→en) generada desde manifest.yaml > i18n (vía
@@ -48,15 +48,15 @@ stop — (solo Claude Code) bloquea UNA vez (respeta stop_hook_active; ante cual
   Codex, Cursor y Gemini CLI: NO se añade Stop; pendiente de verificar su equivalente con fuente primaria.
 
 Formatos (documentación oficial, consultada 2026-09-27; Stop: 2026-10-11):
-  Claude Code  code.claude.com/docs/en/hooks   SessionStart: texto plano en stdout;
+  Claude Code  doc. oficial de hooks           SessionStart: texto plano en stdout;
                PreToolUse: hookSpecificOutput.permissionDecision (ask|deny).
-  Codex        learn.chatgpt.com/docs/hooks    SessionStart: texto plano en stdout;
+  Codex        doc. oficial de hooks           SessionStart: texto plano en stdout;
                PreToolUse: hookSpecificOutput.permissionDecision=deny ("ask" aún no soportado).
-  Cursor       cursor.com/docs/agent/hooks     sessionStart: {"additional_context"};
+  Cursor       doc. oficial de hooks (agent)   sessionStart: {"additional_context"};
                beforeShellExecution: {"permission": allow|deny|ask, "user_message", "agent_message"}.
-  Gemini CLI   geminicli.com/docs/hooks        SessionStart: hookSpecificOutput.additionalContext;
+  Gemini CLI   doc. oficial de hooks           SessionStart: hookSpecificOutput.additionalContext;
                BeforeTool: {"decision": "deny", "reason"}.
-Stop (Claude Code) — https://code.claude.com/docs/en/hooks (secciones «Common input fields»,
+Stop (Claude Code) — documentación oficial de hooks de Claude Code (secciones «Common input fields»,
   «Stop input» y «Stop decision control»): entrada con session_id, transcript_path, stop_hook_active y
   last_assistant_message; {"decision": "block", "reason": "..."} impide terminar.
   Esa página no documenta el formato del transcript: [INFERENCIA] se asume JSONL con
@@ -130,9 +130,9 @@ def resolve_language(runtime, env=None):
     """«es» o «en». Claude Code: CLAUDE_PLUGIN_OPTION_LANGUAGE → SEA_LANGUAGE → «es»; los demás runtimes: SEA_LANGUAGE → «es».
     Manda la primera variable no vacía; un valor desconocido (o sin i18n.json) equivale a «es»."""
     env = os.environ if env is None else env
-    names = ("CLAUDE_PLUGIN_OPTION_LANGUAGE", "SEA_LANGUAGE") if runtime == "claude-code" else ("SEA_LANGUAGE",)
-    for name in names:
-        value = str(env.get(name) or "").strip().lower()
+    values = (env.get("CLAUDE_PLUGIN_OPTION_LANGUAGE"), env.get("SEA_LANGUAGE")) if runtime == "claude-code" else (env.get("SEA_LANGUAGE"),)
+    for raw in values:
+        value = str(raw or "").strip().lower()
         if value:
             i18n = load_i18n() if value != "es" else None
             return value if value == "en" and i18n and "en" in i18n["languages"] else "es"
@@ -255,9 +255,9 @@ def emit(obj):
 
 
 def project_root(data):
-    for var in ("CLAUDE_PROJECT_DIR", "CURSOR_PROJECT_DIR", "GEMINI_PROJECT_DIR"):
-        if os.environ.get(var):
-            return os.environ[var]
+    for value in (os.environ.get("CLAUDE_PROJECT_DIR"), os.environ.get("CURSOR_PROJECT_DIR"), os.environ.get("GEMINI_PROJECT_DIR")):
+        if value:
+            return value
     roots = data.get("workspace_roots") or []
     if roots:
         return roots[0]
@@ -328,9 +328,9 @@ def knowledge_report(root, lang="es"):
 
 
 # Estado de las alertas NN-06b entre session-start y stop (D-11). Clave: session_id, campo común a todos los
-# eventos de hooks de Claude Code (https://code.claude.com/docs/en/hooks, «Common input fields»).
+# eventos de hooks de Claude Code (documentación oficial de hooks de Claude Code, sección «Common input fields»).
 # Ubicación: ${CLAUDE_PLUGIN_DATA} si el runtime la exporta al proceso del hook (los hooks de un plugin la reciben:
-# https://code.claude.com/docs/en/plugins-reference#environment-variables) y, si no, el directorio temporal del sistema.
+# referencia de plugins de Claude Code, sección «Environment variables») y, si no, el directorio temporal del sistema.
 def _state_paths(data):
     sid = data.get("session_id")
     if not isinstance(sid, str) or not sid.strip():
@@ -543,7 +543,7 @@ _TEE = re.compile(r"\btee\b((?:[ \t]+-[a-zA-Z]+)*)[ \t]+([^\s;&|<>()]+)")
 _PS_EDIT = re.compile(r"(?<![\w-])(?:set-content|add-content|out-file|clear-content)(?=[\s;&|]|$)([^\n;&|]*)", re.I)
 _PS_PATH_PARAM = {"-path", "-filepath", "-literalpath"}
 _PS_VALUE_PARAM = {"-value", "-encoding", "-width", "-stream", "-filter", "-include", "-exclude", "-inputobject"}
-_PATH_TOKEN = re.compile(r"^[\w./~-]+\.\w+$")
+_PATH_LIKE = re.compile(r"^[\w./~-]+\.\w+$")
 
 
 def bash_edit_targets(command):
@@ -559,7 +559,7 @@ def bash_edit_targets(command):
             out.append(m.group(2))
     for m in _INPLACE.finditer(cmd):
         rest = cmd[m.end():]
-        files = [t for t in re.split(r"[\s;&|]+", rest.split("\n")[0]) if _PATH_TOKEN.match(t) and not t.startswith("s/")]
+        files = [t for t in re.split(r"[\s;&|]+", rest.split("\n")[0]) if _PATH_LIKE.match(t) and not t.startswith("s/")]
         out.extend(files or ["?"])
     for m in _PS_EDIT.finditer(cmd):
         out.append(_ps_target(m.group(1)))

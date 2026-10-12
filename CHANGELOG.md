@@ -25,6 +25,7 @@ cumplirse la *Puerta de salida hacia 1.0.0* (más abajo).
 ## [Sin publicar]
 
 - GitHub Sponsors: botón de patrocinio y enlace en los README (sin cambio de versión).
+- Preparación para el directorio de plugins: icono del plugin y sea_hooks.py sin URL en comentarios, con lecturas de entorno literales (sin cambio de comportamiento ni de versión).
 
 ## [1.2.1] — 2026-10-11
 
