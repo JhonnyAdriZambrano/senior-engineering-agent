@@ -34,8 +34,7 @@ Respuesta corta: **es una mezcla, no todo se automatiza**, y no todo
 abajo** — no porque falte terminar el script, sino porque automatizarlos
 mal sería peor que no automatizarlos (te daría una falsa sensación de
 "ya está probado" en exactamente los casos donde más importa tu criterio).
-`tests/behavioral/run_scenarios.sh` (9 de 14, heurístico) está **obsoleto**: no
-lo uses como evidencia.
+El arnés heurístico anterior se retiró en 1.2.2 y no sirve como evidencia.
 
 Incluso en los casos automatizados el resultado es un screening: lee la
 transcripción (`tests/results/evals/<corrida>/traces/`) sobre todo ante un FAIL

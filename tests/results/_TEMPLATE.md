@@ -15,7 +15,7 @@ Procedimiento: `tests/GUIA_BENCHMARK.md`. Criterios: `tests/BENCHMARK.md`.
 - **Hooks activos** (sí / no):
 - **Sandbox recreado antes de esta prueba** (debe ser sí):
 - **Sesión nueva de Claude Code** (debe ser sí):
-- **Método:** manual | run_scenarios.sh
+- **Método:** manual | eval.sh
 - **Prompt exacto:**
 
 ```

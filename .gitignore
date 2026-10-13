@@ -8,7 +8,6 @@
 # --- Secretos y credenciales (nunca deben versionarse) ---
 .env
 .env.*
-!.env.example
 *.pem
 *.key
 secrets/
@@ -21,9 +20,6 @@ secrets/
 /build/
 *.zip
 !scripts/**/*.zip
-
-# --- Salida del arnés de comportamiento (tests/behavioral/run_scenarios.sh) ---
-tests-log-*/
 
 # --- Registros locales del benchmark (corridas, transcripciones, RESUMEN.md,
 #     rondas archivadas). Son datos de cada evaluador, no parte del agente;

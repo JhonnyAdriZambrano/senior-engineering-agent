@@ -18,14 +18,56 @@ código ejecutable), MAJOR/MINOR/PATCH se interpretan así:
   desincronizados, rutas incorrectas), aclaraciones de documentación,
   mejoras de redacción que no cambian el comportamiento esperado.
 
+Las entradas anteriores a 1.2.2 conservan el detalle de proceso (identificadores internos del plan, etapas) de su momento y no se reescriben.
+
 **Mientras `MAJOR` sea `0` (pre-release)** cualquier versión puede introducir
 cambios de comportamiento. La etiqueta `1.0.0` se asignó el 2026-10-09 al
 cumplirse la *Puerta de salida hacia 1.0.0* (más abajo).
 
-## [Sin publicar]
+## [1.2.2] — 2026-10-13
 
-- GitHub Sponsors: botón de patrocinio y enlace en los README (sin cambio de versión).
-- Preparación para el directorio de plugins: icono del plugin y sea_hooks.py sin URL en comentarios, con lecturas de entorno literales (sin cambio de comportamiento ni de versión).
+Versión PATCH de cierre de release: metadatos, documentación y comunidad. **No cambia el comportamiento**: `core/`, `modules/`, las reglas NN, `hooks.json`, las descripciones
+de las Skills y los agentes son byte a byte los de 1.2.1. `sea_hooks.py` solo cambia en comentarios (sin URL) y en lecturas de entorno con nombre literal, con el mismo orden y la
+misma precedencia (lo cubren la prueba de identidad byte a byte del modo `es` y `hooks_practice.sh`). En `adapters/claude-code/CLAUDE.md` y `adapters/codex/AGENTS.md` (instalación
+manual) solo se sustituyen referencias internas por texto llano, sin cambiar reglas. La etiqueta `v1.2.2` la crea el propietario al cumplir la *Puerta de salida hacia 1.2.2* (más abajo); este cambio no crea etiquetas.
+
+### Añadido
+
+- `SECURITY.md` (qué cuenta como vulnerabilidad y cómo reportarla en privado), `CONTRIBUTING.md` y plantillas de issues (`bug_report`, `false_positive_or_negative`, `config`).
+- `plugin.json`: `keywords` (etiquetas de descubrimiento) e `icon` (`./icon.png`, ahora en la raíz del plugin; PNG de 512 px), según
+  <https://code.claude.com/docs/en/plugins/manifest-reference> («Directory listing fields»).
+- CI: guarda de versión (si el plugin cambió desde la última etiqueta `v*`, `plugin.json.version` debe haber cambiado) y pruebas anti-deriva de la documentación (versiones de estado y
+  referencias a un plan interno).
+- Incluido desde `main` sin publicar: botón de GitHub Sponsors y enlace en los README; icono del plugin; `sea_hooks.py` sin URL en comentarios y con lecturas de entorno literales;
+  `PRIVACY.md` con `privacyPolicyUrl` y `supportUrl` en `plugin.json`.
+
+### Cambiado
+
+- `manifest.yaml > agent.version` = 1.2.2 y vistas regeneradas (`plugin.json` = 1.2.2).
+- Documentación al día: cabecera de la CI y comentario de `.gitattributes`, estado de validación y estado actual en `SPECIFICATION.md`, estado por runtime en los README y «Pendientes conocidos».
+  Los identificadores de un plan interno no versionado se sustituyen por texto llano.
+
+### Corregido
+
+- Deriva documental: el benchmark ya no se describe como manual (existe `scripts/eval.sh`) y los títulos de estado de los README y de `SPECIFICATION.md` siguen la versión de `manifest.yaml`.
+
+### Retirado
+
+- `tests/behavioral/run_scenarios.sh` (arnés heurístico obsoleto, sustituido por `scripts/eval.sh`), su paso en la CI y sus menciones.
+- `.env.example`: el proyecto no usa variables de entorno; se mantiene la prueba de que no hay `.env` versionado.
+
+### Sin evals con modelo
+
+El contenido que llega al modelo no cambia, así que las mediciones de 1.2.0 (`docs/MEASUREMENTS.md`) siguen vigentes y no se repiten.
+
+### Puerta de salida hacia 1.2.2
+
+La etiqueta `v1.2.2` solo se asigna cuando se cumplen TODOS estos puntos:
+
+1. Suite estructural (`py -3 tests/test_agent.py`), los tres `--check` y `claude plugin validate --strict` (plugin y repositorio) en verde.
+2. CI en verde en Linux y Windows sobre el commit a etiquetar (incluida la guarda de versión).
+3. `git diff --stat v1.2.1 -- core modules adapters/skills adapters/claude-code/agents plugins/claude-code/senior-engineering-agent/hooks` vacío
+   (en `sea_hooks.py`, solo los cambios sin efecto descritos arriba), y «Private vulnerability reporting» activado en Settings.
 
 ## [1.2.1] — 2026-10-11
 
@@ -430,5 +472,5 @@ cumpla **todo**:
 - Subagents para Cursor (campo `readonly`) y Gemini CLI.
 - Codex Plugins (bundle Skills + Apps + MCP): no implementados; su esquema no
   se verificó con fuente primaria. Ver `docs/ADDING_A_RUNTIME.md`.
-- `tests/behavioral/run_scenarios.sh` es un filtro heurístico; el benchmark
-  válido para la puerta es el manual en sandbox.
+- La evaluación de comportamiento está automatizada con `scripts/eval.sh` (`claude plugin eval`; 11 de las 14 pruebas, total o parcialmente); TEST-05, 10 y 11
+  siguen siendo manuales (`tests/MANUAL_SCENARIOS.md`).

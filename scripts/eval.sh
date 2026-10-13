@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Evaluación automatizada del plugin con `claude plugin eval` (sustituye a tests/behavioral/run_scenarios.sh).
+# Evaluación automatizada del plugin con `claude plugin eval`.
 # Casos: plugins/claude-code/senior-engineering-agent/evals/ (README.md de esa carpeta: criterio → grader).
 # Documentación oficial: https://code.claude.com/docs/en/plugin-evals
 #

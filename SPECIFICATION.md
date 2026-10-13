@@ -55,9 +55,11 @@ senior-engineering-agent/
 ├── capabilities.yaml                 capacidades abstractas → binding por runtime
 ├── LICENSE                            Apache-2.0 (desde 1.2.1; las versiones ≤ 1.2.0 son CC BY-NC 4.0)
 ├── NOTICE                             aviso de copyright y de la licencia
-├── .gitignore / .env.example          higiene de Git (sin secretos)
+├── SECURITY.md / CONTRIBUTING.md      política de seguridad y guía de contribución (en inglés)
+├── .gitignore                         higiene de Git (sin secretos)
 ├── .gitattributes                     fin de línea LF (portabilidad en Windows)
 ├── .github/workflows/structural-tests.yml  CI: suite estructural en cada push/PR, en Linux y Windows (sin LLM)
+├── .github/ISSUE_TEMPLATE/            plantillas de issues (error; falso positivo o negativo de los hooks)
 │
 ├── core/                             siempre cargado, 100% portable
 │   ├── 00-identity.md
@@ -124,7 +126,6 @@ senior-engineering-agent/
 │   ├── GUIA_BENCHMARK.md               procedimiento para ejecutar todas las pruebas
 │   ├── results/_TEMPLATE.md            plantilla de registro de corridas
 │   ├── MANUAL_SCENARIOS.md             escenarios de verificación de comportamiento real
-│   ├── behavioral/run_scenarios.sh     arnés heurístico OBSOLETO (lo sustituye scripts/eval.sh)
 │   └── sandbox/setup_sandbox.sh        crea el sandbox del benchmark (estados A/B/C)
 │
 └── scripts/                            NO se distribuye en el ZIP
@@ -228,8 +229,8 @@ Claude Code (`.claude/skills/`) y a Codex, Cursor y Gemini CLI
 sin permisos de escritura: `code-reviewer-agent` (revisión independiente, modo
 REVIEW) y `project-bootstrap-research-agent` (comparación de opciones con
 fuentes). Codex incluye además `repository-explorer-agent` (INSPECCIONAR/
-COMPRENDER y propuesta de plan), marcado **sin medir**; en E3c (decisión D-3) se
-retiró de Claude Code, el único runtime con evaluación automatizada. Implementar, ejecutar tests y decidir
+COMPRENDER y propuesta de plan), marcado **sin medir**; se
+retiró de Claude Code (no se midió un beneficio frente al modelo solo), el único runtime con evaluación automatizada. Implementar, ejecutar tests y decidir
 quedan en el hilo principal: un subagent no puede usar la interacción
 estructurada con el usuario (Claude Code, `code.claude.com/docs/en/sub-agents`),
 y en tareas donde cada paso depende del anterior la información se pierde en
@@ -340,7 +341,7 @@ esa plataforma, que este manifiesto no puede anular.
 | Memoria automática sin archivo | Sí (*Auto Memory*, coexiste sin conflicto — ver adaptador) | No documentada | No | Parcial (`/memory add`, con fallos reportados) | Sí (memoria de proyecto, coexiste sin conflicto — ver adaptador) | No |
 | Hooks (inicio de sesión / antes de comandos / fin de turno) | Sí — `SessionStart` / `PreToolUse` (`ask`; `Bash` y `PowerShell`) / `Stop` (bloquea una vez si no hay validación) | Sí — `SessionStart` / `PreToolUse` (solo `deny`; `ask` aún no soportado) | Sí — `sessionStart` / `beforeShellExecution` (`ask`) | Sí — `SessionStart` / `BeforeTool` (`deny`) | No | No |
 | Protocolo de herramientas externas estandarizado | MCP (cliente y origen) | MCP (cliente) | MCP (cliente) | MCP (cliente) | MCP (apps SDK) | No |
-| **Estado de validación en uso real (1.1.0)** | **validado** | pendiente de validar (E4') | sin validar en uso real | sin validar en uso real | sin validar en uso real | sin validar en uso real |
+| **Estado de validación en uso real** | **validado** | pendiente de validar | sin validar en uso real | sin validar en uso real | sin validar en uso real | sin validar en uso real |
 
 **Plugin de Claude Code (vista generada).** Distribuye el núcleo con un hook
 `SessionStart` por archivo de `core/` (matchers `startup`, `clear`, `compact`),
@@ -354,7 +355,7 @@ canónico 00→05): <archivo>]` para que el modelo la reconstruya en el orden
 canónico. A diferencia de `@import`, no hay un solo bloque contiguo. La fuente
 única sigue siendo `core/`, `modules/`, `adapters/` y `manifest.yaml`.
 
-**Idioma de salida (D-16 revisada, 1.2.0).** El núcleo normativo sigue en
+**Idioma de salida (desde 1.2.0).** El núcleo normativo sigue en
 español (fuente de verdad). El plugin declara un selector `language`
 (`es` | `en`, defecto `es`) en `userConfig` de `plugin.json`
 (<https://code.claude.com/docs/en/plugins/manifest-reference>, «User
@@ -375,7 +376,7 @@ inglés, tabla de etiquetas) y los mensajes de NN-08, NN-06b, del informe de
 conocimiento y de Stop salen en inglés; en modo `es` la salida de `session-start`
 y `pre-tool` es idéntica byte a byte a la de 1.1.2.
 
-**Stop y la documentación (D-18, H-E3d-2).** El hook `Stop` no exige validación
+**Stop y la documentación (desde 1.2.0).** El hook `Stop` no exige validación
 cuando TODOS los archivos editados en el turno (herramientas
 Edit/Write/MultiEdit y destinos de edición por shell) son documentación:
 extensión `.md`, `.markdown`, `.txt`, `.rst` o `.adoc` (sin distinguir
@@ -422,28 +423,27 @@ externo que ya no existe; las mitigaciones están en el núcleo
 
 ## 9. Próximos pasos
 
-Estado (versión 1.2.1; puerta de salida hacia 1.0.0 cumplida el 2026-10-09; la
-de 1.1.0, la de 1.1.2, la de 1.2.0 y la de 1.2.1 están definidas en `CHANGELOG.md`; 1.1.1 no se etiquetó): instalación como plugin de Claude Code
+Estado (versión 1.2.2): instalación como plugin de Claude Code
 (vía principal) y documentada por runtime, Skills generadas y compartidas por
 Claude Code, Codex, Cursor y Gemini CLI, Subagents de solo lectura, tests
 estructurales, script de sandbox para el benchmark, núcleo compacto
 sincronizado con los adaptadores sin `@import`, empaquetado determinista,
 README y CHANGELOG, plugin generado con hooks `SessionStart`, `PreToolUse` y
-`Stop`, y evaluación automatizada (`scripts/eval.sh`, `claude plugin eval`). La
-etiqueta 1.0.0 se asignó al cumplir la "Puerta de salida hacia 1.0.0" de
-`CHANGELOG.md`; la 1.1.0 la crea el propietario al cumplir la "Puerta de salida
-hacia 1.1.0". Lo que sigue pendiente:
+`Stop`, y evaluación automatizada (`scripts/eval.sh`, `claude plugin eval`). Las
+etiquetas publicadas (v1.0.0, v1.1.0, v1.1.2, v1.2.0 y v1.2.1; 1.1.1 no se
+etiquetó) se asignaron al cumplirse sus puertas de salida, definidas en
+`CHANGELOG.md`; la v1.2.2 la crea el propietario al cumplir la suya. Lo que
+sigue pendiente:
 
 1. **Validación de comportamiento real contra un runtime.** Los tests de
    `tests/test_agent.py` son estructurales (estáticos). El benchmark de
    `tests/BENCHMARK.md` (14 pruebas) se automatiza en 11 de 14 (total o
    parcialmente) con `scripts/eval.sh` (`claude plugin eval`, con línea base sin
-   plugin para medir Δ); el arnés heurístico `tests/behavioral/run_scenarios.sh`
-   está obsoleto. TEST-05, 10 y 11 siguen siendo manuales. La puerta hacia 1.0.0
+   plugin para medir Δ). TEST-05, 10 y 11 siguen siendo manuales. La puerta hacia 1.0.0
    (14 pruebas en sandbox, registradas en `tests/results/`) se cumplió el
-   2026-10-09 (`CHANGELOG.md`, «Estado de la puerta»); la de 1.1.0 exige
-   regresión con pass^3 en los críticos, calibración humana y aceptación del
-   plugin en el PC. Los registros y resultados de evaluaciones son locales y no
+   2026-10-09 (`CHANGELOG.md`, «Estado de la puerta»); las posteriores
+   (regresión con pass^3 en los críticos, calibración humana y aceptación del
+   plugin en el PC) están en `CHANGELOG.md`. Los registros y resultados de evaluaciones son locales y no
    se versionan.
 2. **Capa de enforcement determinista** (hooks): implementados el
    2026-09-27 el hook de inicio de sesión (conocimiento del proyecto y
@@ -452,7 +452,7 @@ hacia 1.1.0". Lo que sigue pendiente:
    pruebas sin LLM; solo Claude Code está validado en uso real. Pendiente:
    el hook `Stop` en Codex, Cursor y Gemini CLI (solo implementado en
    Claude Code; su equivalente está por verificar con fuente primaria), la
-   validación en uso real de los otros tres runtimes (Codex, en la etapa E4'; Cursor y Gemini CLI, sin validar) y la comparativa con y sin hooks
+   validación en uso real de los otros tres runtimes (Codex, pendiente; Cursor y Gemini CLI, sin validar) y la comparativa con y sin hooks
    (`prepare_test.sh --sin-hooks`).
 3. **Confirmar con fuente primaria** el `/init`-equivalente de Cursor (hoy
    `[INCERTIDUMBRE]` en `modules/project-knowledge-bootstrap.md` y «No

@@ -313,7 +313,7 @@ for dirpath, _, filenames in os.walk(ROOT):
                     secret_hits.append(f"{os.path.relpath(full, ROOT)} coincide con patrón de secreto: {pat}")
 
 check("Ningún archivo de texto contiene un patrón de secreto conocido", len(secret_hits) == 0, "; ".join(secret_hits))
-check("No existe archivo .env versionado", not exists(".env"), ".env no debería estar en el repo, solo .env.example")
+check("No existe archivo .env versionado", not exists(".env"), ".env no debería estar en el repo")
 
 # ---------------------------------------------------------------------------
 print("\n== 6. Validez de sintaxis (YAML/TOML) ==")
@@ -517,7 +517,6 @@ for dp, dns, _ in os.walk(ROOT):
         if dn.startswith("tests-log-"):
             stray.append(os.path.relpath(os.path.join(dp, dn), ROOT))
 check("No hay carpetas tests-log-* dentro del paquete", not stray, f"encontradas: {stray}")
-check(".gitignore ignora tests-log-*/", "tests-log-*/" in read(".gitignore"), "falta la regla")
 CI = ".github/workflows/structural-tests.yml"
 if exists(CI):
     ci = read(CI)
@@ -1266,7 +1265,7 @@ if pj is not None:
     check("plugin.json: license == Apache-2.0 (SPDX) y el plugin lleva LICENSE y NOTICE idénticos a los de la raíz (D-22)",
           pj.get("license") == "Apache-2.0" and read(f"{PLUGIN_REL}/LICENSE") == read("LICENSE") and read(f"{PLUGIN_REL}/NOTICE") == read("NOTICE"), str(pj.get("license")))
     check("plugin.json: no usa campos fuera de la documentación oficial",
-          set(pj) <= {"name", "displayName", "version", "description", "author", "homepage", "license", "repository", "userConfig", "privacyPolicyUrl", "supportUrl"}, str(sorted(pj)))
+          set(pj) <= {"name", "displayName", "version", "description", "author", "homepage", "license", "repository", "userConfig", "privacyPolicyUrl", "supportUrl", "keywords", "icon"}, str(sorted(pj)))
 
 # Contenido del plugin: núcleo sin compact.md, los 2 subagentes, las 7 Skills, plantillas junto a sea_hooks.py
 check("El plugin incluye core/00..05 y NO core/compact.md",
@@ -1864,7 +1863,7 @@ def _png_info(path):
 
 
 _ic_src = _png_info(os.path.join(ROOT, "adapters", "claude-code", "icon.png"))
-_ic_plg = _png_info(os.path.join(PLUGIN, ".claude-plugin", "icon.png"))
+_ic_plg = _png_info(os.path.join(PLUGIN, "icon.png"))
 check("Icono del plugin: PNG cuadrado, 512–2048 px por lado y < 2 MB",
       bool(_ic_plg) and _ic_plg[0] == _ic_plg[1] and 512 <= _ic_plg[0] <= 2048 and _ic_plg[2] < 2 * 1024 * 1024,
       f"{_ic_plg[:3] if _ic_plg else 'no es PNG'}")
@@ -2042,7 +2041,7 @@ check("adapters/hooks/i18n.json (repo y plugin) coincide con manifest.yaml > i18
 _uc = ((pj or {}).get("userConfig") or {}).get("language") or {}
 check("plugin.json: userConfig.language = selector (type string, options es/en, default es, title y description) sin campos fuera de la documentación",
       _uc.get("type") == "string" and _uc.get("options") == ["es", "en"] and _uc.get("default") == "es" and _uc.get("title") and _uc.get("description")
-      and set(_uc) <= {"type", "title", "description", "options", "default"} and "v2.1.271" in _uc.get("description", "") and set(pj) <= {"name", "displayName", "version", "description", "author", "homepage", "license", "repository", "userConfig", "privacyPolicyUrl", "supportUrl"},
+      and set(_uc) <= {"type", "title", "description", "options", "default"} and "v2.1.271" in _uc.get("description", "") and set(pj) <= {"name", "displayName", "version", "description", "author", "homepage", "license", "repository", "userConfig", "privacyPolicyUrl", "supportUrl", "keywords", "icon"},
       str(_uc))
 _pd, _md = (pj or {}).get("description", ""), mj["plugins"][0]["description"]
 check("Catálogo bilingüe (A5): plugin.json y marketplace.json describen primero en inglés y después en español",
@@ -2094,7 +2093,7 @@ rc, out = run_stop([_user("x"), _tu("Write", file_path="README.md"), _tr(), _say
 check("Stop (D-18, modo «en»): solo documentación -> allow", rc == 0 and out is None, str(out))
 _hk = read("adapters/hooks/sea_hooks.py")
 check("Stop: el criterio de documentación y sus límites están documentados en el docstring de sea_hooks.py y en SPECIFICATION.md §7",
-      "D-18" in _hk and "is_docs_only" in _hk and "extensión no prueba" in _hk and ".adoc" in read("SPECIFICATION.md") and "D-18" in read("SPECIFICATION.md"), "falta documentación")
+      "D-18" in _hk and "is_docs_only" in _hk and "extensión no prueba" in _hk and ".adoc" in read("SPECIFICATION.md") and "Stop y la documentación" in read("SPECIFICATION.md"), "falta documentación")
 check("sea_hooks.py del repo y del plugin coinciden (vista derivada)", read("adapters/hooks/sea_hooks.py") == read(f"{PLUGIN_REL}/adapters/hooks/sea_hooks.py"), "deriva")
 
 # --- C1: scripts/eval_summary.py (sin coste de modelo) ---
@@ -2230,6 +2229,66 @@ for _n in _ast.walk(_ast.parse(_src)):
 check("Guarda: toda llamada de la suite a subprocess que decodifica texto (text=True/encoding) declara encoding explícito y errors=\"replace\"",
       _hook_calls >= 8 and _decoding_calls >= 15 and not _bad_enc,
       f"{_decoding_calls} llamadas con decodificación ({_hook_calls} a hooks/lanzador) revisadas; sin encoding o sin errors=\"replace\" en: {', '.join(_bad_enc)}")
+
+# ---------------------------------------------------------------------------
+print("\n== 20. Guarda de versión y anti-deriva de la documentación (sin LLM) ==")
+# ---------------------------------------------------------------------------
+_vg_spec = _ilu.spec_from_file_location("check_version_guard", os.path.join(ROOT, "scripts", "check_version_guard.py"))
+_vg = _ilu.module_from_spec(_vg_spec)
+_vg_spec.loader.exec_module(_vg)
+check("Guarda de versión: falla solo si el plugin cambió desde la etiqueta y plugin.json.version es la de la etiqueta",
+      _vg.violates(True, "1.2.1", "v1.2.1") and not _vg.violates(True, "1.2.2", "v1.2.1")
+      and not _vg.violates(False, "1.2.1", "v1.2.1") and not _vg.violates(False, "1.2.2", "v1.2.1"), "criterio incorrecto")
+_ci20 = read(".github/workflows/structural-tests.yml")
+check("CI: checkout con fetch-depth: 0 y paso de la guarda de versión (scripts/check_version_guard.py)",
+      "fetch-depth: 0" in _ci20 and "scripts/check_version_guard.py" in _ci20, "falta en structural-tests.yml")
+check("CI: la cabecera ya no describe el benchmark como manual y no queda rastro de tests/behavioral ni de .env.example",
+      "scripts/eval.sh" in _ci20.split("name: structural-tests")[0] and "behavioral" not in _ci20 and not exists("tests/behavioral") and not exists(".env.example"), "deriva")
+_tags20 = set(mj["plugins"][0]["tags"]) if mj else set()
+check("plugin.json: keywords incluye los tags de marketplace.json e icon es una ruta «./…» a un PNG existente dentro del plugin (manifest-reference, «Directory listing fields»)",
+      pj is not None and _tags20 <= set(pj.get("keywords") or []) and pj.get("icon", "").startswith("./")
+      and os.path.isfile(os.path.join(PLUGIN, pj.get("icon", "x")[2:])), f"keywords={pj.get('keywords') if pj else None} icon={pj.get('icon') if pj else None}")
+
+# (a) Las versiones que citan los títulos de estado coinciden con manifest.yaml.
+_VER_IN_TITLE = re.compile(r"(?:versión|version)\s+(\d+\.\d+\.\d+)", re.I)
+_stale = []
+for _f in ("README.md", "README.es.md", "SPECIFICATION.md"):
+    for _n, _ln in enumerate(read(_f).splitlines(), 1):
+        if re.match(r"(?:#+ |\*\*Estado|Estado \()", _ln):
+            for _v in _VER_IN_TITLE.findall(_ln):
+                if _v != version:
+                    _stale.append(f"{_f}:{_n} dice {_v}")
+check("Anti-deriva (a): toda «versión X.Y.Z» en un título de estado de README.md, README.es.md y SPECIFICATION.md coincide con manifest.yaml",
+      not _stale, "; ".join(_stale))
+
+# (b) Sin identificadores de un plan interno no versionado en la documentación vigente.
+_PLAN_ID_PATTERNS = [
+    r"\bE\d[a-d]?'?(?![\w-])",   # etapa del plan: E3d, E7a, E4'  (no E2E, E164 ni nombres con guion)
+    r"\bD-\d{1,2}\b",            # decisión del plan: D-3, D-17
+    r"\bH-E\d",                  # hallazgo del plan: H-E7a-1
+    r"(?i:plan de mejora)",
+    r"\bAnexo [A-Z]\b",
+]
+_PLAN_ID_RE = re.compile("|".join(_PLAN_ID_PATTERNS))
+_doc_files = ["README.md", "README.es.md", "SPECIFICATION.md", "CONTRIBUTING.md", "SECURITY.md"]
+_doc_files += sorted(os.path.relpath(f_, ROOT).replace(os.sep, "/") for f_ in glob.glob(os.path.join(ROOT, "docs", "*.md")))
+_doc_files += sorted(os.path.relpath(f_, ROOT).replace(os.sep, "/") for f_ in glob.glob(os.path.join(ROOT, "adapters", "*", "*.md")))
+_plan_hits = []
+for _f in _doc_files:
+    if not exists(_f):
+        continue
+    _fence = False
+    for _n, _ln in enumerate(read(_f).splitlines(), 1):
+        if _ln.lstrip().startswith("```"):
+            _fence = not _fence
+            continue
+        if _fence:
+            continue  # ejemplos de código
+        _m = _PLAN_ID_RE.search(_ln)
+        if _m:
+            _plan_hits.append(f"{_f}:{_n} «{_m.group(0)}»")
+check(f"Anti-deriva (b): sin IDs de un plan interno en {len(_doc_files)} documentos (patrones: {' | '.join(_PLAN_ID_PATTERNS)})",
+      not _plan_hits, ", ".join(_plan_hits[:8]))
 
 # ---------------------------------------------------------------------------
 print(f"\n{'='*60}\nResultado: {PASSED} pruebas OK, {len(FAILURES)} fallidas, {len(SKIPPED)} omitidas\n{'='*60}")

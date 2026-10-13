@@ -83,7 +83,7 @@ confirmación desde un hook, así que el agente debe explicarlas y, si el
 usuario las autoriza, darle el comando para que lo ejecute él (NN-08).
 El hook `Stop` no se instala en Codex (solo existe en Claude Code; su
 equivalente está pendiente de verificar con fuente primaria). Validado sin
-LLM; en uso real con Codex, pendiente de validar (etapa E4'): `[INCERTIDUMBRE /
+LLM; en uso real con Codex, pendiente de validar: `[INCERTIDUMBRE /
 REQUIERE VERIFICACIÓN]`.
 
 ## Cambios y alcance

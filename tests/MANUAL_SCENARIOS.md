@@ -12,8 +12,7 @@ escenarios con más detalle narrativo por caso.
 **Actualización:** estos escenarios también se evalúan de forma automatizada
 con `bash scripts/eval.sh` (`claude plugin eval`; casos en
 `plugins/claude-code/senior-engineering-agent/evals/`, criterio → grader en su
-`README.md`). El arnés anterior, `tests/behavioral/run_scenarios.sh`, está
-**obsoleto** y no sirve como evidencia.
+`README.md`). El arnés heurístico anterior se retiró en 1.2.2 y no sirve como evidencia.
 
 La evaluación automatizada NO reemplaza tu criterio: combina patrones de texto y
 juicios de un modelo sobre texto generado por otro, así que es un filtro de
