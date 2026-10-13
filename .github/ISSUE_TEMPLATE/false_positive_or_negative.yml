@@ -1,0 +1,75 @@
+name: False positive / false negative
+description: A hook (NN-08, NN-06b or Stop) blocked something harmless, or let something through that it should have caught.
+labels: [hooks]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        If a destructive command went through **without any confirmation** and you think it could be abused, treat it as a vulnerability and follow
+        [SECURITY.md](https://github.com/JhonnyAdriZambrano/senior-engineering-agent/blob/main/SECURITY.md) instead of filing it here.
+  - type: dropdown
+    id: hook
+    attributes:
+      label: Which hook
+      options:
+        - NN-08 (confirmation before destructive shell commands)
+        - NN-06b (lines that look like orders in project knowledge files)
+        - Stop (validation at the end of a turn)
+    validations:
+      required: true
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Kind
+      options:
+        - False positive (it asked, denied or blocked something harmless)
+        - False negative (it did not catch what it should have)
+    validations:
+      required: true
+  - type: textarea
+    id: command
+    attributes:
+      label: Command or input
+      description: The exact command, or the exact line of the knowledge file, or the files edited in the turn. Remove secrets and private paths.
+      render: text
+    validations:
+      required: true
+  - type: input
+    id: runtime
+    attributes:
+      label: Runtime and version
+      description: "e.g. Claude Code 2.1.296."
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating system and shell
+      description: "e.g. Windows 11 with Git Bash, Ubuntu 24.04 with bash."
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Plugin version
+    validations:
+      required: true
+  - type: dropdown
+    id: language
+    attributes:
+      label: Language option
+      options: [es, en, not set]
+  - type: textarea
+    id: hook-output
+    attributes:
+      label: Hook output
+      description: What the hook printed or returned (the confirmation message, the report or the Stop message), verbatim.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true

@@ -1,8 +1,8 @@
 # CI del repositorio de la especificación: SOLO la suite estructural (sin LLM).
-# El benchmark de comportamiento (TEST-00…TEST-13) es manual, en sandbox
-# (tests/GUIA_BENCHMARK.md), porque requiere una cuenta de Claude Code y
-# criterio humano. Sin secretos: permisos de solo lectura. Dos jobs: Linux (suite, --check
-# y aceptación práctica de hooks) y Windows (suite y aceptación práctica con Git Bash).
+# La evaluación de comportamiento (scripts/eval.sh, `claude plugin eval`; benchmark TEST-00…TEST-13 en
+# tests/GUIA_BENCHMARK.md) no corre aquí: requiere una cuenta de Claude Code y criterio humano.
+# Sin secretos: permisos de solo lectura. Dos jobs: Linux (suite, --check, guarda de versión y aceptación
+# práctica de hooks) y Windows (suite y aceptación práctica con Git Bash).
 name: structural-tests
 
 on:
@@ -24,6 +24,8 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0   # historial y etiquetas v*: la guarda de versión compara con la última
 
       - uses: actions/setup-python@v7
         with:
@@ -42,14 +44,17 @@ jobs:
           python3 scripts/generate_compact.py --check
           python3 scripts/generate_plugin.py --check
 
+      - name: Guarda de versión (si el plugin cambió desde la última etiqueta v*, plugin.json.version debe cambiar)
+        run: python3 scripts/check_version_guard.py
+
       - name: Sintaxis de los scripts bash
         run: |
-          for f in scripts/*.sh tests/*.sh tests/acceptance/*.sh tests/behavioral/*.sh tests/sandbox/*.sh; do
+          for f in scripts/*.sh tests/*.sh tests/acceptance/*.sh tests/sandbox/*.sh; do
             bash -n "$f"
           done
 
       - name: Compilación de los scripts Python sin LLM
-        run: python3 -m py_compile adapters/hooks/sea_hooks.py tests/sandbox/finish_test.py scripts/check_results.py
+        run: python3 -m py_compile adapters/hooks/sea_hooks.py tests/sandbox/finish_test.py scripts/check_results.py scripts/check_version_guard.py
 
       - name: Suite estructural (incluye build determinista del ZIP)
         run: python3 tests/test_agent.py

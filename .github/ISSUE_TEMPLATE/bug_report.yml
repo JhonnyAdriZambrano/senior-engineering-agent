@@ -1,0 +1,54 @@
+name: Bug report
+description: Something in the plugin, the specification or the tooling does not work as documented.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For a security vulnerability, do not use this form: follow [SECURITY.md](https://github.com/JhonnyAdriZambrano/senior-engineering-agent/blob/main/SECURITY.md).
+        For a hook that blocked or allowed the wrong command, use the "False positive / false negative" template.
+  - type: input
+    id: version
+    attributes:
+      label: Plugin version
+      description: "The plugin.json version or the repository tag/commit, e.g. 1.2.2."
+    validations:
+      required: true
+  - type: input
+    id: runtime
+    attributes:
+      label: Runtime and version
+      description: Claude Code, Codex, Cursor, Gemini CLI, ChatGPT or Gemini Gems, with its version.
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      description: "e.g. Windows 11 with Git Bash, Ubuntu 24.04, macOS 15."
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: Minimal steps. Do not paste secrets or code from private projects.
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Output or logs
+      render: text

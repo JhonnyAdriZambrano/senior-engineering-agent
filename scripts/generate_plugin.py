@@ -6,9 +6,11 @@ templates/ y manifest.yaml). Mismo patrón que generate_skills.py: con --check
 no escribe nada y sale con 1 si hay deriva.
 
 Qué genera (documentación oficial: code.claude.com/docs/en/plugins-reference):
-  .claude-plugin/plugin.json   name, displayName y homepage (manifest.yaml, 1.2.1), version,
+  .claude-plugin/plugin.json   name, displayName y homepage (manifest.yaml), version,
                                description (inglés y después español), author, license,
-                               repository y userConfig.language (selector es|en, 1.2.0)
+                               repository, keywords, icon, privacyPolicyUrl, supportUrl y
+                               userConfig.language (selector es|en)
+  icon.png                     icono del plugin, en la raíz del plugin (plugin.json > icon = "./icon.png")
   README.md                    portada del plugin (plantilla PLUGIN_README de este script)
   skills/                      copia de adapters/skills/
   agents/                      copia de adapters/claude-code/agents/
@@ -48,6 +50,9 @@ UNMANAGED = ("evals",)  # carpeta de primer nivel que el generador no toca
 AUTHOR = {"name": "Jhonny Adrian Zambrano Gonzalez"}  # README.md, «Autoría»
 LICENSE_ID = "Apache-2.0"  # identificador SPDX de LICENSE (raíz del repo)
 REPOSITORY = "https://github.com/JhonnyAdriZambrano/senior-engineering-agent"
+# Etiquetas de descubrimiento (plugin.json > keywords). Las cuatro primeras son los tags de la entrada de .claude-plugin/marketplace.json.
+KEYWORDS = ["engineering", "code-review", "architecture", "security", "claude-code", "hooks", "skills", "subagents"]
+ICON = "./icon.png"  # ruta dentro del plugin, con «./» (manifest-reference, «Directory listing fields»)
 SESSION_MATCHERS = ("startup", "clear", "compact")
 HEADER = "[Núcleo SEA — parte {n} de {total} (orden canónico 00→05): {file}]"
 
@@ -139,6 +144,8 @@ def plugin_json(manifest):
         "homepage": agent["homepage"],  # URL de documentación; debe parsear como URL o el plugin no carga
         "license": LICENSE_ID,
         "repository": REPOSITORY,
+        "keywords": list(KEYWORDS),
+        "icon": ICON,
         "privacyPolicyUrl": agent["homepage"] + "/blob/main/PRIVACY.md",
         "supportUrl": agent["homepage"] + "/issues",
         "userConfig": {
@@ -251,7 +258,7 @@ def expected_files():
     files[".claude-plugin/plugin.json"] = dump_json(plugin_json(manifest))
     files["hooks/hooks.json"] = dump_json(hooks_json(manifest))
     files["scripts/sea-python.sh"] = LAUNCHER.encode("utf-8")
-    files[".claude-plugin/icon.png"] = read_bytes("adapters/claude-code/icon.png")  # icono del plugin (directorio de plugins)
+    files["icon.png"] = read_bytes("adapters/claude-code/icon.png")  # icono del plugin (directorio de plugins)
     for src in tree_files("adapters/skills"):
         files["skills/" + src[len("adapters/skills/"):]] = read_bytes(src)
     for src in tree_files("adapters/claude-code/agents"):

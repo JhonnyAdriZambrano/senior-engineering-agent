@@ -15,8 +15,8 @@ no basta.
 
 | Nivel | Qué es | Cuánto tarda | Usa LLM | Estado |
 |---|---|---|---|---|
-| **1. Estructural** | `tests/test_agent.py` (19 secciones): la especificación es coherente | segundos | No | ✅ existe |
-| **2. Comportamiento automatizado** | `scripts/eval.sh` (`claude plugin eval`; 11 de 14 pruebas, total o parcialmente; §6b) | ~20–60 min | Sí | ✅ vigente. `tests/behavioral/run_scenarios.sh` (9 de 14, heurístico) está **obsoleto** (§6) |
+| **1. Estructural** | `tests/test_agent.py` (20 secciones): la especificación es coherente | segundos | No | ✅ existe |
+| **2. Comportamiento automatizado** | `scripts/eval.sh` (`claude plugin eval`; 11 de 14 pruebas, total o parcialmente; §6b) | ~20–60 min | Sí | ✅ vigente |
 | **3. Comportamiento manual** | Las 14 pruebas de `tests/BENCHMARK.md` (TEST-00…TEST-13) | ~1–2 h | Sí | ✅ procedimiento en §4–§5 |
 | **4. Hooks y arnés endurecido** | Hooks de inicio de sesión y previos a comandos para Claude Code, Codex, Cursor y Gemini CLI, con tests sin LLM (sección 16 del nivel 1); canary por hook y N repeticiones automáticas | — | — | ✅ hooks (Fase C) · ⏳ arnés endurecido (Fase B, §9) |
 
@@ -399,47 +399,9 @@ def test_negative_amount_rejected():
 
 ---
 
-## 6. Nivel 2 — El arnés `run_scenarios.sh`
-
-> **OBSOLETO.** Este arnés lo reemplaza `scripts/eval.sh` (`claude plugin eval`) desde 1.1.0. Se conserva, pero no lo uses como evidencia de la puerta.
-
-```bash
-cd ~/sandbox/sea-bench                        # estado A; NUNCA en el repo de la especificación
-cp /RUTA/A/senior-engineering-agent/tests/behavioral/run_scenarios.sh .   # el paquete instalado no incluye tests/
-bash run_scenarios.sh                         # logs en ./tests-log-<fecha>/
-```
-
-Para TEST-02 el script exige que `PROJECT_CONTEXT.md`/`ARCHITECTURE.md` **no
-existan**. Ejecuta `claude -p … --output-format json --allowedTools … --max-turns 6`,
-por lo que carga el agente (sin `--bare`).
-
-**Debilidades conocidas (auditoría, hallazgo H-03) — qué PASS no creer todavía:**
-
-| Prueba | Fiabilidad del PASS | Por qué | Qué hacer |
-|---|---|---|---|
-| TEST-00 | Moderada | Desde 2026-09-26 exige el rol canónico completo y, si falta, **aborta** el resto (protege contra un agente no cargado); no verifica las 10 reglas | Hazla también manual (§5) para la puerta |
-| TEST-02 | Débil `[INFERENCIA]` | Patrón amplio; no mide "primer turno" ni "una sola vez" | Hazla manual, 3 sub-escenarios |
-| TEST-03 | Débil `[INFERENCIA]` | Cualquier `?` en la respuesta cuenta | Lee el log |
-| TEST-04, 06, 08, 12 | Moderada `[INFERENCIA]` | Patrones de texto | Lee el log de cada una |
-| TEST-07 | **No fiable** (demostrado) | Sin `Bash`, la obediencia no puede materializarse; una paráfrasis pasa el patrón | Hazla manual con canario (§5) |
-| TEST-13 | **No fiable** (por diseño) | Sin `Bash`, un intento lo bloquea la capa de permisos, no NN-08 | Hazla manual (§5) |
-
-Además: los logs se escriben en el directorio actual (por eso el sandbox ignora
-`tests-log-*/`), el script registra la versión del CLI pero no modelo/effort
-(anótalos tú) y ejecuta **una sola muestra** por prueba. Todo esto se corrige
-en la Fase B (§9).
-
-**Riesgo conocido — `--bare` por defecto.** La documentación oficial de
-Claude Code anuncia que `--bare` pasará a ser el modo por defecto de `-p` en
-una versión futura. El script comprueba la instalación antes de empezar y
-aborta si TEST-00 no devuelve el rol completo; si eso ocurre tras actualizar
-el CLI, revisa su changelog antes de sospechar del agente.
-
----
-
 ## 6b. Evaluación automatizada (`claude plugin eval`)
 
-Sustituye al arnés obsoleto de la §6 para las pruebas que se pueden medir sin juicio humano. Casos, clasificación de las 14 pruebas
+Sustituye al arnés heurístico que se retiró en 1.2.2 para las pruebas que se pueden medir sin juicio humano. Casos, clasificación de las 14 pruebas
 (AUTOMATIZABLE / PARCIAL / MANUAL con su motivo) y la tabla criterio PASS → grader:
 `plugins/claude-code/senior-engineering-agent/evals/README.md`. Referencia oficial: <https://code.claude.com/docs/en/plugin-evals>.
 
@@ -564,7 +526,7 @@ En este orden:
 
 | Fase | Qué se añadirá | Cómo cambiará esta guía |
 |---|---|---|
-| **B** | Canary por hook (registra intentos de `Bash` y los deniega) y aserciones sobre ese log; N repeticiones automáticas; TEST-00 con el rol completo; TEST-07 con el escenario real; logs fuera del proyecto; registro automático de versión/modelo/effort | §6 pasa a fiable; §5 (07, 13) se vuelve automatizable |
+| **B** | Canary por hook (registra intentos de `Bash` y los deniega) y aserciones sobre ese log; N repeticiones automáticas; TEST-00 con el rol completo; TEST-07 con el escenario real; logs fuera del proyecto; registro automático de versión/modelo/effort | §5 (07, 13) se vuelve automatizable |
 | **C** | ✅ Hooks de inicio de sesión y previos a comandos, con lógica común para Claude Code, Codex, Cursor y Gemini CLI y tests sin LLM (2026-09-27; solo probados en uso real con Claude Code). Pendiente: hook `Stop`, validación en uso real de los otros tres runtimes y la comparativa con hooks **activados y desactivados** (`prepare_test.sh --sin-hooks`) | Nueva sección "Pruebas de enforcement" |
 | **D** | ✅ Hecho (2026-09-26): `.github/workflows/structural-tests.yml` corre el nivel 1 en cada push/PR a `main` | — |
 

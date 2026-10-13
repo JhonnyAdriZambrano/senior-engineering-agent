@@ -120,8 +120,8 @@ lectura y devuelven un informe con formato fijo (incluida la sección
   `scope-regression-change-control`.
 - `project-bootstrap-research-agent` — compara opciones técnicas de un
   proyecto nuevo, con fuentes.
-El subagente explorador (`repository-explorer-agent`) se retiró de Claude Code
-en E3c (decisión D-3): no se midió un beneficio frente al modelo solo. Para
+El subagente explorador (`repository-explorer-agent`) se retiró de Claude Code:
+no se midió un beneficio frente al modelo solo. Para
 explorar, delega con la herramienta de subagentes integrada de Claude Code o
 explora en el hilo principal.
 Por qué solo lectura: los subagents reciben el `CLAUDE.md` (y por tanto el
@@ -161,7 +161,7 @@ Codex, Cursor y Gemini CLI) con `--runtime claude-code`:
 bloquea: Claude Code lo cancela y descarta su salida, así que no se emite
 ninguna decisión (code.claude.com/docs/en/hooks). Los hooks son una capa de
 refuerzo, no una barrera estricta; la capa estricta serán las reglas de
-permisos que escribirá el instalador (etapa E4 del plan de mejora).
+permisos que escribirá el instalador (aún no implementado).
 Si en tu sistema el intérprete no se llama `python3` (en Windows suele ser
 `python` o `py -3`), cambia el prefijo del comando. Los comandos usan
 `${CLAUDE_PROJECT_DIR}`; en Windows se recomienda que Claude Code use Git

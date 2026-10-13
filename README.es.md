@@ -59,14 +59,16 @@ senior-engineering-agent/
 ├── LICENSE                      Apache-2.0 (texto oficial íntegro)
 ├── NOTICE                       aviso de copyright y de la licencia
 ├── PRIVACY.md                   política de privacidad (enlazada desde plugin.json)
+├── SECURITY.md                  qué es una vulnerabilidad y cómo reportarla en privado (inglés)
+├── CONTRIBUTING.md              cómo contribuir: fuente única frente a vistas generadas (inglés)
 ├── manifest.yaml                identidad, versión, índice de módulos
 ├── capabilities.yaml            capacidades abstractas → binding por runtime
 ├── .gitattributes               fin de línea LF (portabilidad en Windows)
 ├── .gitignore                   higiene de Git (secretos, builds, resultados)
-├── .env.example                 documenta que el proyecto no requiere variables propias
 ├── .github/
+│   ├── ISSUE_TEMPLATE/          plantillas: error y falso positivo/negativo de los hooks
 │   └── workflows/
-│       └── structural-tests.yml CI: suite estructural y --check en Linux y Windows (sin LLM)
+│       └── structural-tests.yml CI: suite estructural, --check y guarda de versión en Linux y Windows (sin LLM)
 ├── .claude-plugin/
 │   └── marketplace.json         el repo es el marketplace del plugin de Claude Code
 ├── core/                        6 archivos siempre cargados + compact.md
@@ -89,7 +91,8 @@ senior-engineering-agent/
 │   └── claude-code/
 │       └── senior-engineering-agent/   plugin de Claude Code GENERADO (scripts/generate_plugin.py)
 │           ├── .claude-plugin/
-│           │   └── plugin.json  nombre y versión (leída de manifest.yaml)
+│           │   └── plugin.json  nombre, versión, keywords, icon y el userConfig de idioma (de manifest.yaml)
+│           ├── icon.png         icono del plugin (copia de adapters/claude-code/icon.png)
 │           ├── LICENSE          copia de la licencia
 │           ├── NOTICE           copia del aviso
 │           ├── core/            copia de core/00-05
@@ -109,7 +112,7 @@ senior-engineering-agent/
 ├── project-knowledge-templates/ plantillas que copias a TU proyecto real
 ├── docs/
 │   ├── ADDING_A_RUNTIME.md      contrato para construir un adaptador nuevo
-│   └── MEASUREMENTS.md          mediciones auditadas (E7a, E3d y 1.2.0): tablas, procedencia y limitaciones
+│   └── MEASUREMENTS.md          mediciones auditadas (regresión, ablación del núcleo y la sesión de 1.2.0): tablas, procedencia y limitaciones
 ├── tests/                       validación estructural + evaluación de comportamiento
 │   ├── test_agent.py            validación estructural (nivel 1, sin LLM)
 │   ├── run_tests.sh             punto de entrada de test_agent.py
@@ -118,7 +121,6 @@ senior-engineering-agent/
 │   ├── MANUAL_SCENARIOS.md      escenarios narrativos de verificación manual
 │   ├── acceptance/              hooks_practice.sh: aceptación práctica de los hooks con el lanzador real (sin LLM)
 │   ├── fixtures/                sea_hooks_1.1.2.py: copia congelada del hook de 1.1.2 (prueba de identidad byte a byte del modo «es»)
-│   ├── behavioral/              arnés heurístico run_scenarios.sh (OBSOLETO: lo sustituye scripts/eval.sh)
 │   ├── sandbox/                 crea el sandbox del benchmark (estados A/B/C)
 │   └── results/                 registros de corridas (plantilla _TEMPLATE.md)
 └── scripts/
@@ -127,19 +129,20 @@ senior-engineering-agent/
     ├── generate_compact.py      core/compact.md -> adaptadores sin @import (--check)
     ├── generate_plugin.py       core/, adapters/ y manifest.yaml -> plugin de Claude Code (--check)
     ├── eval.sh                  evaluación automatizada con `claude plugin eval` (smoke|regression|capability|all)
-    ├── ablate_core.sh           ablación del núcleo (D-17): sin core/02…05 sobre 11 casos (`completo|sin-02|sin-03|sin-04|sin-05`)
+    ├── ablate_core.sh           ablación del núcleo: sin core/02…05 sobre 11 casos (`completo|sin-02|sin-03|sin-04|sin-05`)
     ├── eval_report.py           informe de una corrida de eval.sh (WITH / W/OUT / Δ)
     ├── eval_summary.py          resumen por caso de uno o varios result.json (excluye graders `arm: with-only`; sin coste de modelo)
+    ├── check_version_guard.py   guarda de versión de la CI: si el plugin cambió desde la última etiqueta `v*`, plugin.json.version debe cambiar
     ├── check_results.py         resume tests/results/ y el estado de la puerta (benchmark manual de 1.0.0)
     └── new_result.sh            crea el registro prellenado de una corrida del benchmark
 ```
 
-## Estado de validación por runtime (versión 1.2.0)
+## Estado de validación por runtime
 
 | Runtime | Estado | Qué significa |
 |---|---|---|
 | Claude Code | **validado** | Evaluado en uso real con `claude plugin eval` y el benchmark (`tests/results/`, `CHANGELOG.md`). |
-| Codex | pendiente de validar (etapa E4') | Adaptador y hooks probados sin LLM; sin ejecución real todavía. |
+| Codex | pendiente de validar | Adaptador y hooks probados sin LLM; sin ejecución real todavía. |
 | Gemini CLI | sin validar en uso real | Solo pruebas estructurales. |
 | Cursor | sin validar en uso real | Solo pruebas estructurales. |
 | ChatGPT Projects / Gemini Gems | sin validar en uso real | Instrucciones comprimidas; sin ejecución real. |
@@ -202,7 +205,7 @@ proyecto).
    cargue solo cuando la tarea lo amerite.
 4. Opcional: copia `adapters/claude-code/agents/*.md` a `.claude/agents/`
    para habilitar los 2 Subagents de solo lectura (revisor e investigación
-   de bootstrap; el explorador se retiró en E3c, decisión D-3).
+   de bootstrap; el explorador se retiró: no se midió un beneficio frente al modelo solo).
 5. Recomendado: copia `adapters/claude-code/settings.hooks.json` a
    `.claude/settings.json` (o fusiónalo) para activar los hooks
    deterministas: aviso de conocimiento faltante al iniciar la sesión
@@ -267,8 +270,8 @@ mínimas y checklist para construir un adaptador nuevo sin tocar `core/`.
 
 ## Mediciones
 
-Resultados auditados (regresión E7a, test-09 con pytest, ablación del núcleo, capacidad y coste de contexto), con su procedencia y sus limitaciones: [`docs/MEASUREMENTS.md`](docs/MEASUREMENTS.md).
-Resumen: Δ medio +0,41 sobre 16 casos (E7a, 2026-10-11, `claude-sonnet-5-5`), los 4 críticos a pass^3; coste de contexto ≈ 6k tokens por evento de sesión [estimación].
+Resultados auditados (regresión del 2026-10-11, test-09 con pytest, ablación del núcleo, capacidad y coste de contexto), con su procedencia y sus limitaciones: [`docs/MEASUREMENTS.md`](docs/MEASUREMENTS.md).
+Resumen: Δ medio +0,41 sobre 16 casos (regresión del 2026-10-11, `claude-sonnet-5-5`), los 4 críticos a pass^3; coste de contexto ≈ 6k tokens por evento de sesión [estimación].
 
 ## Testing
 
@@ -294,7 +297,7 @@ real del agente. Para eso existen dos niveles: `tests/BENCHMARK.md`
 (14 pruebas formales con criterios objetivos PASS/PARTIAL/FAIL y
 diagnóstico de causa raíz — Modelo/Prompt/Contexto del proyecto/Tooling) y
 la evaluación automatizada con `scripts/eval.sh` (vigente, ver abajo).
-`tests/behavioral/run_scenarios.sh` está **OBSOLETO**. Ambos niveles son
+Ambos niveles son
 screening, no un oráculo — revisa `tests/MANUAL_SCENARIOS.md`
 para el detalle narrativo de cada caso. **Procedimiento paso a paso (sandbox,
 fixtures, repeticiones, qué PASS del script no creer aún):
@@ -359,9 +362,8 @@ runtimes. La CI (`.github/workflows/structural-tests.yml`) ejecuta en cada
 push y pull request a `main`, en Linux y en Windows, la suite estructural, la
 aceptación práctica de hooks (`tests/acceptance/hooks_practice.sh`) y, en Linux,
 las comprobaciones `--check` de las vistas derivadas, sin secretos ni llamadas a modelos; el
-benchmark de comportamiento sigue siendo manual (`tests/GUIA_BENCHMARK.md`). `.env.example` documenta que este proyecto en sí no requiere
-variables de entorno propias (ver el archivo para el detalle sobre
-servidores MCP en despliegues reales).
+benchmark de comportamiento se automatiza con `scripts/eval.sh` (requiere una cuenta de Claude Code, por eso no corre en la CI; ver `tests/GUIA_BENCHMARK.md`). Este proyecto en sí no requiere
+variables de entorno propias.
 
 ## Autoría
 

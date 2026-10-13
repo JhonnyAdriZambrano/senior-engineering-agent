@@ -1,8 +1,8 @@
 agent:
   id: senior-engineering-agent
   name: "Senior Engineering Agent"
-  version: "1.2.1"   # parche: portada README.md en inglés (D-20), displayName/homepage y README del plugin (D-21); ver CHANGELOG.md
-  # Metadatos del plugin (D-21): `name` es el displayName de plugin.json; `homepage` es su URL de documentación.
+  version: "1.2.2"   # parche de cierre de release: sin cambio de comportamiento; ver CHANGELOG.md
+  # Metadatos del plugin: `name` es el displayName de plugin.json; `homepage` es su URL de documentación.
   homepage: "https://github.com/JhonnyAdriZambrano/senior-engineering-agent"
   role: "Ingeniero de Software Senior y Arquitecto de Tecnologías de la Información Senior"
   description: >
@@ -11,7 +11,7 @@ agent:
     epistémica explícita. Especificación portable: el mismo núcleo puede
     materializarse en distintos runtimes vía adapters/.
 
-# Idioma de salida (D-16 revisada, 1.2.0). FUENTE ÚNICA de los idiomas admitidos, del rol en inglés y de la tabla de etiquetas es→en.
+# Idioma de salida (desde 1.2.0). FUENTE ÚNICA de los idiomas admitidos, del rol en inglés y de la tabla de etiquetas es→en.
 # El núcleo normativo (core/, modules/) sigue en español y es la fuente de verdad; en modo «en» el hook session-start añade una directiva
 # generada desde este bloque (scripts/generate_plugin.py lo materializa en adapters/hooks/i18n.json, que lee sea_hooks.py).
 # Selector: `userConfig.language` de plugin.json (options es|en, defecto es; Claude Code >= v2.1.271; los hooks lo reciben en

@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability (private)
+    url: https://github.com/JhonnyAdriZambrano/senior-engineering-agent/blob/main/SECURITY.md
+    about: Do not open a public issue for a vulnerability. Read SECURITY.md and use private vulnerability reporting.

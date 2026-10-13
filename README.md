@@ -135,8 +135,8 @@ Full tables, provenance and limitations: [`docs/MEASUREMENTS.md`](docs/MEASUREME
 
 | Measurement | Date | Result |
 |---|---|---|
-| **Regression E7a** — plugin 1.1.0, 16 cases × 3 runs × 2 arms (WITH plugin / W/OUT), ≈ 7.08 USD | 2026-10-11 | **Mean Δ +0.41** (+0.407); the **4 critical cases at pass^3 (3/3 perfect runs each)**; no Δ < 0. Largest gains: c1 exact role +1.00, c3 core titles +1.00, test-00 install +1.00, test-02a +0.75, test-03 user interaction +0.75. |
-| **Core ablation E3d** — plugin 1.1.2, WITH arm only, 11 cases × 3 runs per variant, ≈ 15.1 USD | 2026-10-11 | Removing **`core/04`** (user interaction): test-03 1.00 → 0.25 (−0.75), test-08 1.00 → 0.43 (−0.57), test-13 loses pass^3 (0.92). Removing **`core/03`** (task classification): test-08b 1.00 → 0.60 (−0.40), test-09 0.87 → 0.67 (−0.20). Removing `core/02` or `core/05`: no measurable loss on these 11 cases (this does not mean they are superfluous). |
+| **Regression of 2026-10-11** — plugin 1.1.0, 16 cases × 3 runs × 2 arms (WITH plugin / W/OUT), ≈ 7.08 USD | 2026-10-11 | **Mean Δ +0.41** (+0.407); the **4 critical cases at pass^3 (3/3 perfect runs each)**; no Δ < 0. Largest gains: c1 exact role +1.00, c3 core titles +1.00, test-00 install +1.00, test-02a +0.75, test-03 user interaction +0.75. |
+| **Core ablation** — plugin 1.1.2, WITH arm only, 11 cases × 3 runs per variant, ≈ 15.1 USD | 2026-10-11 | Removing **`core/04`** (user interaction): test-03 1.00 → 0.25 (−0.75), test-08 1.00 → 0.43 (−0.57), test-13 loses pass^3 (0.92). Removing **`core/03`** (task classification): test-08b 1.00 → 0.60 (−0.40), test-09 0.87 → 0.67 (−0.20). Removing `core/02` or `core/05`: no measurable loss on these 11 cases (this does not mean they are superfluous). |
 | **test-09 (regression) with pytest** — plugin 1.1.2, 3 runs × 2 arms, ≈ 0.49 USD | 2026-10-11 | WITH 0.93 · W/OUT 0.67 · **Δ +0.27** (per the evaluator) · 2/3 perfect WITH runs. |
 
 Limitations of these figures: n = 3 runs per case and a single execution per measurement; a single model; 8 of the 11 ablation cases are at the ceiling; capability measurements are partial;
@@ -145,7 +145,7 @@ raw results are not versioned (`tests/results/` is local). 1.2.0 session (plugin
 | Measurement | Date | Result |
 |---|---|---|
 | Smoke, 4 critical cases in `es` | 2026-10-11 | All 4 at pass^3 (3/3 perfect runs each). |
-| Cases affected by Stop (test-03, test-08, test-08b, test-09) | 2026-10-12 | 1.00 / 1.00 / 1.00 / 0.93; no drop > 0.10 versus E7a (1.00 / 1.00 / 0.72 / 0.87). |
+| Cases affected by Stop (test-03, test-08, test-08b, test-09) | 2026-10-12 | 1.00 / 1.00 / 1.00 / 0.93; no drop > 0.10 versus the 2026-10-11 regression (1.00 / 1.00 / 0.72 / 0.87). |
 | `cap-stop-docs` (editing only `README.md`) | 2026-10-12 | 1.00; the Stop hook no longer blocks (indicator 3/3). |
 | `cap-certeza-sin-ejecutar` (isolated, no Bash) | 2026-10-12 | WITH 1.00, W/OUT 1.00 (Δ 0.00): no `[VERIFIED FACT]`-style claim on unexecuted code, with or without the plugin. |
 | 4 English cases (`en` mode, via a plugin copy with `CLAUDE_PLUGIN_OPTION_LANGUAGE=en`) | 2026-10-12 | All 4 at pass^3; exact English role in 3/3 runs of the role case. |
@@ -157,12 +157,12 @@ Same limits apply (n = 3, one model, one execution).
 `SessionStart` injects **19,622 characters per event** (`startup`, `clear` and `compact`; core 19,291 + hook report) ≈ **4,900–5,600 tokens ESTIMATED** (characters / 3.5–4, no tokenizer).
 `claude plugin details` reports ≈ 1,087 tokens and does **not** count hook output. Always-on cost ≈ **6k tokens per session event** [estimate]. `en` mode adds a short directive (1,425 characters ≈ 0.4k tokens, estimate).
 
-## Validation status per runtime (version 1.2.0)
+## Validation status per runtime
 
 | Runtime | Status | What it means |
 |---|---|---|
 | Claude Code | **validated** | Evaluated in real use with `claude plugin eval` and the benchmark (`tests/results/`, `CHANGELOG.md`). |
-| Codex | pending validation (stage E4') | Adapter and hooks tested without an LLM; no real execution yet. |
+| Codex | pending validation | Adapter and hooks tested without an LLM; no real execution yet. |
 | Gemini CLI | not validated in real use | Structural tests only. |
 | Cursor | not validated in real use | Structural tests only. |
 | ChatGPT Projects / Gemini Gems | not validated in real use | Compressed instructions; no real execution. |
@@ -192,14 +192,16 @@ senior-engineering-agent/
 ├── LICENSE                      Apache-2.0 (full official text)
 ├── NOTICE                       copyright and license notice
 ├── PRIVACY.md                   privacy policy (linked from plugin.json)
+├── SECURITY.md                  what counts as a vulnerability and how to report it privately
+├── CONTRIBUTING.md              how to contribute: single source vs generated views, checks
 ├── manifest.yaml                identity, version, module index, i18n (languages, English role, label table)
 ├── capabilities.yaml            abstract capabilities -> per-runtime binding
 ├── .gitattributes               LF line endings (Windows portability)
 ├── .gitignore                   Git hygiene (secrets, builds, results)
-├── .env.example                 documents that the project needs no variables of its own
 ├── .github/
+│   ├── ISSUE_TEMPLATE/          bug report and hook false positive/negative templates
 │   └── workflows/
-│       └── structural-tests.yml CI: structural suite and --check on Linux and Windows (no LLM)
+│       └── structural-tests.yml CI: structural suite, --check and version guard on Linux and Windows (no LLM)
 ├── .claude-plugin/
 │   └── marketplace.json         the repo is the Claude Code plugin marketplace
 ├── core/                        6 always-loaded files + compact.md
@@ -219,7 +221,8 @@ senior-engineering-agent/
 │   └── claude-code/
 │       └── senior-engineering-agent/   GENERATED Claude Code plugin (scripts/generate_plugin.py)
 │           ├── .claude-plugin/
-│           │   └── plugin.json  name, version and the language userConfig (from manifest.yaml)
+│           │   └── plugin.json  name, version, keywords, icon and the language userConfig (from manifest.yaml)
+│           ├── icon.png         plugin icon (copy of adapters/claude-code/icon.png)
 │           ├── LICENSE          license copy
 │           ├── NOTICE           notice copy
 │           ├── core/            copy of core/00-05
@@ -239,7 +242,7 @@ senior-engineering-agent/
 ├── project-knowledge-templates/ templates you copy into YOUR real project
 ├── docs/
 │   ├── ADDING_A_RUNTIME.md      contract for building a new adapter
-│   └── MEASUREMENTS.md          audited measurements (E7a, E3d and 1.2.0): tables, provenance, limitations
+│   └── MEASUREMENTS.md          audited measurements (regression, core ablation and the 1.2.0 session): tables, provenance, limitations
 ├── tests/                       structural validation + behavior evaluation
 │   ├── test_agent.py            structural validation (level 1, no LLM)
 │   ├── run_tests.sh             entry point of test_agent.py
@@ -248,7 +251,6 @@ senior-engineering-agent/
 │   ├── MANUAL_SCENARIOS.md      narrative manual verification scenarios
 │   ├── acceptance/              hooks_practice.sh: practical acceptance of the hooks with the real launcher (no LLM)
 │   ├── fixtures/                sea_hooks_1.1.2.py: frozen copy of the 1.1.2 hook (byte-for-byte identity test of `es` mode)
-│   ├── behavioral/              heuristic harness run_scenarios.sh (OBSOLETE: scripts/eval.sh replaces it)
 │   ├── sandbox/                 creates the benchmark sandbox (states A/B/C)
 │   └── results/                 run records (template _TEMPLATE.md)
 └── scripts/
@@ -257,9 +259,10 @@ senior-engineering-agent/
     ├── generate_compact.py      core/compact.md -> adapters without @import (--check)
     ├── generate_plugin.py       core/, adapters/ and manifest.yaml -> Claude Code plugin (--check)
     ├── eval.sh                  automated evaluation with `claude plugin eval` (smoke|regression|capability|regression-en|all)
-    ├── ablate_core.sh           core ablation (D-17): without core/02…05 over 11 cases (`completo|sin-02|sin-03|sin-04|sin-05`)
+    ├── ablate_core.sh           core ablation: without core/02…05 over 11 cases (`completo|sin-02|sin-03|sin-04|sin-05`)
     ├── eval_report.py           report of an eval.sh run (WITH / W/OUT / Δ)
     ├── eval_summary.py          per-case summary of one or more result.json (excludes `arm: with-only` graders; no model cost)
+    ├── check_version_guard.py   CI version guard: if the plugin changed since the last `v*` tag, plugin.json.version must change
     ├── check_results.py         summarizes tests/results/ and the gate status (manual 1.0.0 benchmark)
     └── new_result.sh            creates the prefilled record of a benchmark run
 ```
@@ -278,7 +281,7 @@ documentation exception) and tool tests. Checks that cannot run are reported as 
 
 ## Contributing / changing the agent
 
-See `README.es.md` (Spanish), section "Actualizar el agente", for the full checklist: edit `core/` or `modules/`, regenerate Skills / compact core / plugin
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) and, for vulnerabilities, [`SECURITY.md`](SECURITY.md). The full checklist is in `README.es.md` (Spanish), section "Actualizar el agente": edit `core/` or `modules/`, regenerate Skills / compact core / plugin
 (`python3 scripts/generate_skills.py`, `generate_compact.py`, `generate_plugin.py`; each with `--check`), run the suite, bump `manifest.yaml > agent.version` per `CHANGELOG.md`, and rebuild the ZIPs.
 
 ## Authorship
