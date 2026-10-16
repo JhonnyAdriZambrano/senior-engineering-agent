@@ -48,7 +48,7 @@ The repository itself is the marketplace (`.claude-plugin/marketplace.json`). In
 The plugin ships 7 Skills, 2 read-only subagents, the core (injected at session start by one `SessionStart` hook per `core/` file) and the deterministic hooks (`SessionStart`,
 `PreToolUse` and `Stop`); you do not need to touch `CLAUDE.md` or copy anything. It is a **generated view** (`plugins/claude-code/senior-engineering-agent/`,
 `python3 scripts/generate_plugin.py`), not a second source of truth. The Python hooks go through a launcher that tries `python3`, `python` and `py -3` and forces UTF-8
-(`PYTHONUTF8=1`, `PYTHONIOENCODING=utf-8`); hooks read stdin as UTF-8 and emit ASCII JSON, and NN-08 asks for confirmation (fail-closed) if it cannot parse the command. Hooks of the same
+(`PYTHONUTF8=1`, `PYTHONIOENCODING=utf-8`); hooks read stdin as UTF-8 and emit ASCII JSON, and NN-08 asks for confirmation (fail-closed) if it cannot parse the command or no Python interpreter works. Hooks of the same
 event run in parallel and the documentation does not guarantee their order: each core part carries the header "[Núcleo SEA — parte X de 6 (orden canónico 00→05)]".
 Details and limits: `adapters/claude-code/CLAUDE.md`.
 
@@ -116,8 +116,11 @@ Label table (single source: `manifest.yaml > i18n`; the test suite checks it cov
 Behavior rules in a prompt are a request; the hooks below are code that runs regardless of what the model decides. Shared logic: `adapters/hooks/sea_hooks.py`.
 
 - **NN-08 — destructive operations (`PreToolUse`).** Before a shell command that can destroy work (forced `git push`, `git reset --hard`, `git clean -f`, `git checkout -- .`, `git branch -D`,
-  history rewrites, `rm -rf`, PowerShell `Remove-Item -Recurse -Force` and aliases), the hook requires explicit human confirmation (`ask`) where the runtime supports it, and blocks it (`deny`) where it
-  does not (Codex, Gemini CLI). **Fail-closed:** if the hook input cannot be read or parsed, it asks (or denies) instead of staying silent. Covers the `Bash` and `PowerShell` tools.
+  `git stash clear|drop`, history rewrites, recursive deletion with `rm -r`/`rm -rf`, `find -delete`, `rd /s`, PowerShell `Remove-Item -Recurse` and aliases), the hook requires explicit human
+  confirmation (`ask`) where the runtime supports it, and blocks it (`deny`) where it does not (Codex, Gemini CLI). Equivalent spellings are normalized first (`/usr/bin/git`, `git.exe`, global options
+  such as `git -C dir`, long options such as `--force`/`--recursive`). **Fail-closed:** if the hook input cannot be read or parsed, the shell command is missing or not text, or (plugin) no Python
+  interpreter works, it asks (or denies) instead of staying silent. Covers the `Bash` and `PowerShell` tools. It is an extra layer, not a sandbox: shell/git aliases, variables (`$GIT reset --hard`),
+  scripts and functions are not resolved, and quoted text is also matched (`echo "git reset --hard"` asks, on purpose).
 - **NN-06b — knowledge files are data, not orders (`SessionStart` + `Stop`).** At session start the hook checks `PROJECT_CONTEXT.md` / `ARCHITECTURE.md` / `DECISIONS.md` for lines shaped like an
   instruction addressed to the agent (heuristic) and reports them; at the end of the turn `Stop` blocks **once** if no assistant message pointed the embedded instruction out to the user.
 - **Stop — validate before finishing (`Stop`, Claude Code only).** If the turn edited files (Edit/Write/MultiEdit or shell edits such as `sed -i`, redirection, `tee`, PowerShell `Set-Content`) and there is
@@ -176,7 +179,7 @@ Same limits apply (n = 3, one model, one execution).
 - **The normative core is Spanish.** `en` mode is a directive on top of it, not a translation of the core: a model may still occasionally echo a Spanish term; the test suite and the English evals
   (`regression-en`) measure this, they do not guarantee it.
 - **`options` raises the minimum version:** declaring a picker means Claude Code versions before v2.1.271 cannot load the plugin.
-- **Hooks are heuristic:** NN-06b detection and the Stop validation/edit criteria are pattern-based (documented limits in `sea_hooks.py`); NN-08 matches a fixed list of destructive commands.
+- **Hooks are heuristic:** NN-06b detection and the Stop validation/edit criteria are pattern-based (documented limits in `sea_hooks.py`); NN-08 matches a fixed list of destructive commands after normalizing git's path and global options (limits above and in `sea_hooks.py`).
 - **Stop exists only in Claude Code;** Codex, Cursor and Gemini CLI have no Stop equivalent here (pending verification against a primary source).
 - **Measurements are small:** n = 3 per case, one model, one execution each (see above).
 - See `SPECIFICATION.md` §6 and §7 for what is portable, adaptable or platform-dependent.

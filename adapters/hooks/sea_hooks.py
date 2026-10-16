@@ -20,6 +20,9 @@ pre-tool — ante un comando de shell potencialmente destructivo (NN-08) exige
   sale en silencio: se emite "ask" (Claude Code, Cursor) o "deny" (Codex y Gemini CLI, que solo admiten deny; el mismo
   criterio que ante una operación destructiva) con el motivo «NN-08: no se pudo analizar el comando; revísalo antes de
   autorizar». Stop y session-start no cambian de criterio (sin entrada analizable: permitir / sin contexto).
+  Desde 1.2.3 (auditoría A1) también es fail-closed una herramienta de shell cuyo `tool_input` no es un objeto o cuyo comando falta
+  o no es texto, y el lanzador del plugin emite "ask" en pre-tool si no encuentra un intérprete de Python. Antes de comparar con
+  DESTRUCTIVE se normaliza el comando (normalize_command(): ruta y .exe de git, opciones globales); límites junto a esa función.
 Codificación (H-E7b-1/2): stdin se lee como bytes y se decodifica como UTF-8; stdout y stderr se reconfiguran a UTF-8;
   toda la salida JSON es ASCII puro (ensure_ascii=True), válida en cualquier codificación de la tubería. La salida de
   texto plano (SessionStart de Claude Code y Codex) sale en UTF-8 gracias a la reconfiguración.
@@ -98,17 +101,57 @@ _PS_R = r"(?<=\s)-r(?:e(?:c(?:u(?:r(?:se?)?)?)?)?)?(?![\w-])"
 _PS_F = r"(?<=\s)-fo(?:r(?:ce?)?)?(?![\w-])"
 _PS_REMOVE = rf"{_PS_CMD}[^\n;&|]*?{_PS_R}[^\n;&|]*?{_PS_F}|{_PS_CMD}[^\n;&|]*?{_PS_F}[^\n;&|]*?{_PS_R}"
 
-# (patrón, motivo en español, motivo en inglés)
+_PS_RECURSE_ONLY = rf"(?<!git\s){_PS_CMD}(?![^\n;&|]*{_PS_F})(?=[^\n;&|]*{_PS_R})"  # recursivo sin -Force; `git rm -r` no cuenta
+
+# rm: opción recursiva (-r, -R, --recursive) y de forzado (-f, --force) en cualquier orden y posición del segmento, sueltas o
+# combinadas (-rf, -vfr). `git rm` sin forzar no cuenta (solo quita archivos versionados, recuperables desde HEAD).
+_RM_R = r"\s(?:-[a-z]*r|--recursive\b)"
+_RM_F = r"\s(?:-[a-z]*f|--force\b)"
+_RM_FORCED = rf"(?<![\w-])rm(?=\s)(?=[^\n;&|]*{_RM_R})(?=[^\n;&|]*{_RM_F})"
+_RM_RECURSE_ONLY = rf"(?<![\w-])(?<!git\s)rm(?=\s)(?![^\n;&|]*{_RM_F})(?=[^\n;&|]*{_RM_R})"
+
+# git checkout / restore con la ruta «.», «:/» o «*» (todo el árbol). `git restore --staged` (o -S) solo toca el índice y no cuenta,
+# salvo que lleve también --worktree (o -W).
+_RESTORE_ALL = (r"\bgit\s+(?:checkout\b|restore\b(?:(?=[^\n;&|]*\s(?:--worktree|(?-i:-W))\b)|(?![^\n;&|]*\s(?:--staged|(?-i:-S))\b)))"
+                r"[^\n;&|]*?\s(?:--\s+)?(?:\.|:/|\*)(?=\s|$)")
+
+# (patrón, motivo en español, motivo en inglés). Las entradas añadidas en 1.2.3 (auditoría A1) van al final para que el orden de los
+# motivos de las anteriores no cambie.
 DESTRUCTIVE = [
     (r"\bgit\s+push\b[^\n;&|]*(\s--force(-with-lease|-if-includes)?\b|\s-[a-zA-Z]*f[a-zA-Z]*\b|\s\+\S+)", "push forzado", "forced push"),
     (r"\bgit\s+reset\b[^\n;&|]*\s--hard\b", "git reset --hard", "git reset --hard"),
-    (r"\bgit\s+clean\b[^\n;&|]*\s-[a-zA-Z]*f", "git clean -f (borra archivos no versionados)", "git clean -f (deletes untracked files)"),
-    (r"\bgit\s+(checkout|restore)\s+(--\s+)?\.(\s|$)", "descarta todos los cambios locales", "discards all local changes"),
+    (r"\bgit\s+clean\b[^\n;&|]*\s(?:-[a-zA-Z]*f|--force\b)", "git clean -f (borra archivos no versionados)", "git clean -f (deletes untracked files)"),
+    (_RESTORE_ALL, "descarta todos los cambios locales", "discards all local changes"),
     (r"\bgit\s+branch\b[^\n;&|]*\s(-D\b|--delete\s+--force\b|--force\s+--delete\b)", "borrado forzado de rama", "forced branch deletion"),
     (r"\bgit\s+(filter-branch|filter-repo)\b", "reescritura de historial", "history rewrite"),
-    (r"\brm\s+(-[a-zA-Z]*r[a-zA-Z]*f|-[a-zA-Z]*f[a-zA-Z]*r|-r\s+-f|-f\s+-r)\b", "borrado recursivo forzado", "forced recursive deletion"),
+    (_RM_FORCED, "borrado recursivo forzado", "forced recursive deletion"),
     (_PS_REMOVE, "borrado recursivo forzado (PowerShell)", "forced recursive deletion (PowerShell)"),
+    (r"\bgit\s+(?:checkout|switch)\b[^\n;&|]*\s(?:-[a-zA-Z]*f[a-zA-Z]*|--force|--discard-changes)(?=\s|$)",
+     "checkout forzado (descarta cambios locales)", "forced checkout (discards local changes)"),
+    (r"\bgit\s+stash\s+(?:clear|drop)\b", "descarta stashes", "discards stashes"),
+    (_RM_RECURSE_ONLY, "borrado recursivo", "recursive deletion"),
+    (_PS_RECURSE_ONLY, "borrado recursivo (PowerShell)", "recursive deletion (PowerShell)"),
+    (r"(?<![\w-])(?:rd|rmdir|del|erase)\b[^\n;&|]*\s/s\b", "borrado recursivo (cmd)", "recursive deletion (cmd)"),
+    (r"(?<![\w-])find\b[^\n;&|]*\s-delete\b", "borrado masivo (find -delete)", "mass deletion (find -delete)"),
 ]
+
+# --- Normalización previa (1.2.3, auditoría A1): los patrones se buscan en el comando tal cual y en esta forma normalizada, en la
+# que el ejecutable de git con ruta o con .exe (`/usr/bin/git`, `git.exe`, `"C:\Program Files\Git\bin\git.exe"`) pasa a `git` y
+# se quitan las opciones globales de git anteriores al subcomando (`-C ruta`, `-c clave=valor`, `--git-dir=…`, `--no-pager`…), de
+# modo que `git -C . reset --hard` se trata como `git reset --hard`.
+# Límites conocidos (heurístico, sin analizar la shell): no se resuelven alias de shell o de git, variables (`$GIT reset --hard`),
+# funciones ni scripts; el texto entre comillas también se analiza, así que `echo "git reset --hard"` pide confirmación (falso
+# positivo deliberado: `bash -c "…"`, `eval` o `Invoke-Expression` sí ejecutan ese texto). NN-08 es una defensa adicional y no
+# sustituye los permisos ni el sandbox del runtime.
+_GIT_EXE = re.compile(r"""["'][^"'\n]*[\\/]git(?:\.exe)?["']|(?<![\w.-])(?:[\w.:~-]*[\\/])+git(?:\.exe)?(?=\s)|(?<![\w.\\/-])git\.exe(?=\s)""", re.I)
+_GIT_GLOBAL_OPT = (r"""(?:-C|-c|--git-dir|--work-tree|--namespace|--config-env|--super-prefix)(?:=|\s+)(?:"[^"\n]*"|'[^'\n]*'|\S+)"""
+                   r"|--exec-path(?:=\S+)?|--no-pager|--paginate|-[pP]|--bare|--no-replace-objects|--no-optional-locks|--no-lazy-fetch"
+                   r"|--(?:literal|glob|noglob|icase)-pathspecs")
+_GIT_GLOBALS = re.compile(rf"(?<![\w.-])git(?:\s+(?:{_GIT_GLOBAL_OPT}))+(?=\s)")
+
+
+def normalize_command(command):
+    return _GIT_GLOBALS.sub("git", _GIT_EXE.sub("git", command))
 SHELL_TOOLS = {"Bash", "PowerShell", "Shell", "run_shell_command"}  # PowerShell: herramienta nativa de Claude Code (tool_input.command)
 
 
@@ -390,22 +433,31 @@ def session_start(runtime, data):
 
 # --------------------------------------------------------------- pre-tool
 def shell_command(runtime, data):
+    """El comando de shell a analizar; "" si la herramienta no es de shell; None si lo es pero `tool_input` no es un objeto o el
+    comando falta o no es texto (1.2.3, auditoría A1: fail-closed, como una entrada que no se puede analizar)."""
     if runtime == "cursor":  # beforeShellExecution
-        return str(data.get("command", ""))
-    if data.get("tool_name") not in SHELL_TOOLS:
-        return ""
-    ti = data.get("tool_input") or {}
-    cmd = ti.get("command")
-    if cmd is None and runtime == "gemini-cli":  # nombre del argumento no confirmado en la documentación
-        cmd = next((v for v in ti.values() if isinstance(v, str)), "")
-    return str(cmd or "")
+        cmd = data.get("command")
+    else:
+        if data.get("tool_name") not in SHELL_TOOLS:
+            return ""
+        ti = data.get("tool_input")
+        if not isinstance(ti, dict):
+            return None
+        cmd = ti.get("command")
+        if cmd is None and runtime == "gemini-cli":  # nombre del argumento no confirmado en la documentación
+            cmd = next((v for v in ti.values() if isinstance(v, str)), None)
+    return cmd if isinstance(cmd, str) else None
 
 
 def pre_tool(runtime, data):
     command = shell_command(runtime, data)
+    if command is None:
+        pre_tool_unparsed(runtime)
+        return
     lang = resolve_language(runtime)
     wi = 1 if lang == "es" else 2
-    reasons = [entry[wi] for entry in DESTRUCTIVE if re.search(entry[0], command, re.I)]
+    forms = (command, normalize_command(command))
+    reasons = [entry[wi] for entry in DESTRUCTIVE if any(re.search(entry[0], c, re.I) for c in forms)]
     if not reasons:
         return
     what = ", ".join(reasons)

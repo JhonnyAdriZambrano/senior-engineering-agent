@@ -423,16 +423,16 @@ externo que ya no existe; las mitigaciones están en el núcleo
 
 ## 9. Próximos pasos
 
-Estado (versión 1.2.2): instalación como plugin de Claude Code
+Estado (versión 1.2.3): instalación como plugin de Claude Code
 (vía principal) y documentada por runtime, Skills generadas y compartidas por
 Claude Code, Codex, Cursor y Gemini CLI, Subagents de solo lectura, tests
 estructurales, script de sandbox para el benchmark, núcleo compacto
 sincronizado con los adaptadores sin `@import`, empaquetado determinista,
 README y CHANGELOG, plugin generado con hooks `SessionStart`, `PreToolUse` y
 `Stop`, y evaluación automatizada (`scripts/eval.sh`, `claude plugin eval`). Las
-etiquetas publicadas (v1.0.0, v1.1.0, v1.1.2, v1.2.0 y v1.2.1; 1.1.1 no se
+etiquetas publicadas (v1.0.0, v1.1.0, v1.1.2, v1.2.0, v1.2.1 y v1.2.2; 1.1.1 no se
 etiquetó) se asignaron al cumplirse sus puertas de salida, definidas en
-`CHANGELOG.md`; la v1.2.2 la crea el propietario al cumplir la suya. Lo que
+`CHANGELOG.md`. Lo que
 sigue pendiente:
 
 1. **Validación de comportamiento real contra un runtime.** Los tests de

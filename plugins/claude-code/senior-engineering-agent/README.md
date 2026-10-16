@@ -1,6 +1,6 @@
 # Senior Engineering Agent
 
-> Senior Software Engineer and Senior Information Technology Architect for Claude Code. Version 1.2.2.
+> Senior Software Engineer and Senior Information Technology Architect for Claude Code. Version 1.2.3.
 
 **What it is.** A Claude Code plugin that loads a senior-engineering core (identity, non-negotiable rules, certainty
 labels, task workflows) at session start, plus 7 Skills, 2 read-only subagents and deterministic hooks. It works on

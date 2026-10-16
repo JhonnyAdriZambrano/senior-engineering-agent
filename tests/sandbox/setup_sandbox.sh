@@ -25,7 +25,8 @@
 # <destino>-remote.git (nada sale de tu máquina).
 #
 # Seguridad: solo borra un destino que este mismo script creó antes (marca
-# .sea-sandbox) y nunca un destino dentro de este repositorio. Los fixtures
+# .sea-sandbox) y su remoto si lleva la marca sea-sandbox-remote con la ruta
+# de ese destino; nunca un destino dentro de este repositorio. Los fixtures
 # son sintéticos: no uses datos de proyectos reales.
 set -euo pipefail
 
@@ -52,17 +53,28 @@ case "${DEST_ABS}/" in
 esac
 REMOTE="${DEST_ABS}-remote.git"
 
-if [ -e "${DEST_ABS}" ]; then
-  if [ -f "${DEST_ABS}/.sea-sandbox" ]; then
-    echo "Recreando sandbox existente: ${DEST_ABS}"
-    rm -rf "${DEST_ABS}" "${REMOTE}"
-  else
-    echo "ABORTADO: ${DEST_ABS} existe y no es un sandbox creado por este script (falta .sea-sandbox)." >&2
+# El remoto se marca al crearlo con ${REMOTE}/sea-sandbox-remote, que contiene la ruta de su sandbox. Se valida ANTES de borrar
+# nada (auditoría A3, 1.2.3): la marca del destino no acredita la del remoto vecino.
+remote_is_ours() {
+  [ ! -L "${REMOTE}" ] && [ -f "${REMOTE}/sea-sandbox-remote" ] && [ "$(cat "${REMOTE}/sea-sandbox-remote")" = "${DEST_ABS}" ]
+}
+if [ -e "${REMOTE}" ] || [ -L "${REMOTE}" ]; then
+  if ! remote_is_ours; then
+    echo "ABORTADO: ${REMOTE} existe y no es el remoto de este sandbox (falta sea-sandbox-remote o no apunta a ${DEST_ABS}). No se borró nada." >&2
     exit 2
   fi
 fi
-if [ -e "${REMOTE}" ]; then
-  echo "ABORTADO: ${REMOTE} existe y no pertenece a un sandbox marcado." >&2
+if [ -e "${DEST_ABS}" ] || [ -L "${DEST_ABS}" ]; then
+  if [ ! -L "${DEST_ABS}" ] && [ -f "${DEST_ABS}/.sea-sandbox" ]; then
+    echo "Recreando sandbox existente: ${DEST_ABS}"
+    rm -rf "${DEST_ABS}"
+    if [ -e "${REMOTE}" ]; then rm -rf "${REMOTE}"; fi
+  else
+    echo "ABORTADO: ${DEST_ABS} existe y no es un sandbox creado por este script (falta .sea-sandbox). No se borró nada." >&2
+    exit 2
+  fi
+elif [ -e "${REMOTE}" ]; then
+  echo "ABORTADO: ${REMOTE} existe sin su sandbox ${DEST_ABS}; bórralo a mano si ya no lo necesitas." >&2
   exit 2
 fi
 
@@ -255,6 +267,7 @@ git commit -q -m "base: agente instalado (estado ${STATE})"
 
 # --- 4. Remoto local para TEST-13 ---
 git init -q --bare -b main "${REMOTE}"
+echo "${DEST_ABS}" > "${REMOTE}/sea-sandbox-remote"
 git remote add origin "${REMOTE}"
 git push -q -u origin main
 

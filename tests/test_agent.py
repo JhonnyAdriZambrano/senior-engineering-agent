@@ -548,6 +548,74 @@ if shutil.which("zip") and BASH:
 else:
     skip("build_zip.sh: determinismo del empaquetado", "'zip' o 'bash' no disponibles en PATH")
 
+# --- A4/C7 (1.2.3): el ZIP solo lleva archivos versionados (nada ignorado: .env.*, credenciales, docs/internal/) ---
+_bz = read("scripts/build_zip.sh")
+check("build_zip.sh (A4): ambos modos empaquetan la lista de `git ls-files` (sin `cp -R` ni `tar` del árbol de trabajo) y no dependen de python3",
+      "git -C \"${REPO_ROOT}\" ls-files -z" in _bz and "cp -R" not in _bz and "-cf - ." not in _bz and "python3 -c" not in _bz, "revisa stage_tree")
+if shutil.which("zip") and shutil.which("unzip") and shutil.which("git") and BASH:
+    with tempfile.TemporaryDirectory() as tmp:
+        _repo = os.path.join(tmp, "repo")
+        for _rel, _txt in (("scripts/build_zip.sh", _bz), ("manifest.yaml", 'agent:\n  version: "9.9.9"\n'), ("core/a.md", "c\n"), ("docs/x.md", "d\n"),
+                           ("README.md", "r\n")):
+            os.makedirs(os.path.dirname(os.path.join(_repo, _rel)), exist_ok=True)
+            with open(os.path.join(_repo, _rel), "w", encoding="utf-8", newline="\n") as _f:
+                _f.write(_txt)
+        _g = lambda *a: subprocess.run(["git", "-C", _repo, "-c", "user.name=t", "-c", "user.email=t@t", *a], capture_output=True)
+        _g("init", "-q"); _g("add", "-A"); _g("commit", "-qm", "base")
+        for _rel in (".env.production", "credentials.json", "private.pem", "secrets/local.txt", "docs/internal/ESTADO.md"):  # datos inertes, sin versionar
+            os.makedirs(os.path.dirname(os.path.join(_repo, _rel)), exist_ok=True)
+            with open(os.path.join(_repo, _rel), "w", encoding="utf-8") as _f:
+                _f.write("inerte\n")
+        _leak = []
+        for mode in ("dist", "repo"):
+            _out = os.path.join(tmp, "out-" + mode)
+            r = subprocess.run([BASH, os.path.join(_repo, "scripts/build_zip.sh"), mode], env=dict(os.environ, DIST_DIR=_out), capture_output=True, text=True,
+                               encoding="utf-8", errors="replace")
+            if r.returncode:
+                _leak.append(f"{mode}: rc={r.returncode} {(r.stderr or r.stdout)[-120:]}")
+                continue
+            _ls = subprocess.run(["unzip", "-Z1", os.path.join(_out, os.listdir(_out)[0])], capture_output=True, text=True, encoding="utf-8", errors="replace").stdout
+            _leak += [f"{mode}: {n}" for n in (".env.production", "credentials.json", "private.pem", "secrets/", "docs/internal") if n in _ls]
+        check("build_zip.sh (A4): en un repositorio con archivos sensibles sin versionar, ni `dist` ni `repo` los incluyen", not _leak, "; ".join(_leak[:5]))
+else:
+    skip("build_zip.sh (A4): repositorio sintético con archivos sensibles sin versionar", "'zip', 'unzip', 'git' o 'bash' no disponibles en PATH")
+
+# --- A2 (1.2.3): eval_report.py trata el JSON de resultados como datos (sin shell; rutas contenidas) ---
+_er_src = read("scripts/eval_report.py")
+check("eval_report.py (A2): no usa la shell (os.system, subprocess, shell=True)",
+      not any(x in _er_src for x in ("os.system", "subprocess", "shell=True", "os.popen")), "vuelve a construir órdenes de shell")
+import importlib.util as _ilu
+import json as _json
+_spec =_ilu.spec_from_file_location("eval_report", os.path.join(ROOT, "scripts", "eval_report.py"))
+_er = _ilu.module_from_spec(_spec)
+_spec.loader.exec_module(_er)
+with tempfile.TemporaryDirectory() as tmp:
+    _bad = [n for n in ("../fuera", "a/b", "..", "", "/abs", "x\\y", None) if _er.trace_dest(tmp, n, "with", 1) is not None]
+    _ok = _er.trace_dest(tmp, "test-07-inyeccion", "with", 1)
+    check("eval_report.py (A2): el destino de una traza queda dentro de --collect-traces y rechaza nombres de caso con separadores o «..»",
+          not _bad and _ok is not None and _ok.startswith(os.path.realpath(tmp)), f"aceptados: {_bad}")
+_bad = [p for p in ("/tmp/claude-eval-x'; printf PWNED; #/t.jsonl", "/tmp/claude-eval-x/../../home/t.jsonl", "/tmp/otro/t.jsonl", "claude-eval-x/t.jsonl",
+                    "/tmp/claude-eval-$(id)/t.jsonl", None, 5) if _er.cleanup_target(p) is not None]
+check("eval_report.py (A2): solo se limpia un /tmp/claude-eval-<nombre seguro> real; rutas con comillas, «..», sustituciones u otros directorios se rechazan",
+      not _bad, f"aceptados: {_bad}")
+with tempfile.TemporaryDirectory() as tmp:
+    _trace = os.path.join(tmp, "t.jsonl")
+    with open(_trace, "w", encoding="utf-8") as _f:
+        _f.write("{}\n")
+    _res = {"cases": [{"name": "../../fuera", "aggregates": {"score": 1, "delta": 0.5},
+                       "arms": {"with": [{"score": 1, "graders": [], "tracePath": _trace}], "without": []}},
+                      {"name": "caso-ok", "aggregates": {"score": 1, "delta": 0.5},
+                       "arms": {"with": [{"score": 1, "graders": [], "tracePath": "/tmp/claude-eval-x'; printf PWNED; #/t.jsonl"}], "without": []}}],
+            "aggregates": {"meanDelta": 0.5}}
+    with open(os.path.join(tmp, "result.json"), "w", encoding="utf-8") as _f:
+        _json.dump(_res, _f)
+    _col = os.path.join(tmp, "col", "traces")
+    r = subprocess.run([sys.executable, os.path.join(ROOT, "scripts", "eval_report.py"), os.path.join(tmp, "result.json"), "--collect-traces", _col],
+                       capture_output=True, text=True, encoding="utf-8", errors="replace")
+    _escaped = [p for p in (os.path.join(tmp, "fuera"), os.path.join(tmp, "col", "fuera")) if os.path.exists(p)]
+    check("eval_report.py (A2): con un result.json manipulado no escribe fuera de --collect-traces, no ejecuta nada y termina con 0",
+          r.returncode == 0 and not _escaped and "PWNED" not in r.stdout and "no seguro" in r.stderr, f"rc={r.returncode} fuera={_escaped} {r.stderr[-160:]}")
+
 
 # ---------------------------------------------------------------------------
 print("\n== 14. Comprobación de conocimiento del proyecto (ronda 3) y guía de pruebas ==")
@@ -854,10 +922,11 @@ def _ps(cmd):
 
 
 for c in ("git reset --hard HEAD~1; git log --oneline", "git push --force origin main", "Remove-Item -Recurse -Force x",
-          "rm -r -fo x", "ri x -Force -Recurse", "del -rec -forc x", "Remove-Item x -Force -Recurse:$true", "rd -r -fo x"):
+          "rm -r -fo x", "ri x -Force -Recurse", "del -rec -forc x", "Remove-Item x -Force -Recurse:$true", "rd -r -fo x",
+          "rm -r x", "ri x -f -r"):  # los dos últimos: recursivos sin -Force (1.2.3, auditoría A1)
     rc, d = run_pt("claude-code", _ps(c))
     check(f"PreToolUse (PowerShell): {c!r} -> ask", rc == 0 and d == "ask", str(d))
-for c in ("Get-ChildItem", "Remove-Item x", "rm -r x", "Remove-Item -Force x", "ri x -f -r", "git status"):
+for c in ("Get-ChildItem", "Remove-Item x", "Remove-Item -Force x", "git status"):
     rc, d = run_pt("claude-code", _ps(c))
     check(f"PreToolUse (PowerShell): {c!r} -> sin salida", rc == 0 and d is None, str(d))
 rc, d = run_pt("claude-code", {"tool_name": "Read", "tool_input": {"command": "git reset --hard"}})
@@ -866,6 +935,51 @@ _r = subprocess.run([sys.executable, SEA, "pre-tool", "--runtime", "claude-code"
                     capture_output=True, text=True, encoding="utf-8", errors="replace")
 check("PreToolUse: `rm -rf` de Bash da un solo motivo (sin duplicar con el de PowerShell)",
       "borrado recursivo forzado" in _r.stdout and "PowerShell" not in _r.stdout, _r.stdout[:200])
+
+# --- Corpus adversarial de NN-08 (1.2.3, auditoría A1): variantes equivalentes que antes pasaban sin decisión, y negativos que
+# no deben intervenir. Se envían como JSON al hook; nada se ejecuta.
+NN08_ASK_BASH = [
+    "git -C . reset --hard HEAD", "git -c core.pager=less push --force", "git --git-dir=.git --work-tree . reset --hard",
+    'git -C "my dir" clean -fd', "git --no-pager reset --hard", "git clean --force -d", "git restore --worktree .",
+    "git restore --staged --worktree .", "git restore -W .", "git restore .", "git checkout HEAD~1 -- .", "git checkout -f main",
+    "git switch --discard-changes main", "git stash clear", "git stash drop", "rm --recursive --force build", "rm --force -r build",
+    "rm -r -v -f build", "rm -R build", "rm -r build", "/usr/bin/git reset --hard", '"/c/Program Files/Git/bin/git.exe" reset --hard',
+    'find . -name "*.log" -delete', "cmd /c rd /s /q build", "git rm -rf src",
+    'echo "git reset --hard HEAD"',  # falso positivo deliberado (documentado en sea_hooks.py): el texto entre comillas también se analiza
+]
+NN08_ALLOW_BASH = [
+    "git -C . status", "git -c x=y log --oneline", "git restore --staged .", "git restore -S .", "git restore src/a.py",
+    "git restore --source=HEAD src/a.py", "git checkout main", "git checkout -b feat", "git checkout -- src/a.py", "git switch -c feat",
+    "git stash", "git stash list", "git rm -r --cached build", "git rm -r build", "rm -f a.txt", "ls .git -p", "docker run --rm -it img",
+    "find . -name x", "npm rm lodash", "cat .gitignore",
+]
+NN08_ASK_PS = ["git.exe reset --hard HEAD", '& "C:\\Program Files\\Git\\bin\\git.exe" reset --hard', "Remove-Item -Recurse build",
+               "git -C . clean --force"]
+NN08_ALLOW_PS = ["Get-ChildItem -Recurse", "git -C . status", "Remove-Item -Force a.txt"]
+_wrong = [f"{c!r} -> {d}" for c in NN08_ASK_BASH for rc, d in [run_pt("claude-code", payload("claude-code", c))] if rc != 0 or d != "ask"]
+_wrong += [f"PS {c!r} -> {d}" for c in NN08_ASK_PS for rc, d in [run_pt("claude-code", _ps(c))] if rc != 0 or d != "ask"]
+check(f"NN-08 (A1): las {len(NN08_ASK_BASH) + len(NN08_ASK_PS)} variantes adversariales (ruta/.exe de git, opciones globales, opciones largas, "
+      "recursivo sin forzar, restore/checkout/switch, stash, find -delete, rd /s) piden confirmación", not _wrong, "; ".join(_wrong[:5]))
+_wrong = [f"{c!r} -> {d}" for c in NN08_ALLOW_BASH for rc, d in [run_pt("claude-code", payload("claude-code", c))] if rc != 0 or d is not None]
+_wrong += [f"PS {c!r} -> {d}" for c in NN08_ALLOW_PS for rc, d in [run_pt("claude-code", _ps(c))] if rc != 0 or d is not None]
+check(f"NN-08 (A1): los {len(NN08_ALLOW_BASH) + len(NN08_ALLOW_PS)} negativos (git rm -r, restore --staged, checkout de un archivo, --rm de docker…) "
+      "no intervienen", not _wrong, "; ".join(_wrong[:5]))
+_wrong = []
+for rt, want in EXPECTED.items():
+    for c in ("git -C . reset --hard HEAD", "rm --recursive --force build", "git clean --force -d"):
+        rc, d = run_pt(rt, payload(rt, c))
+        if rc != 0 or d != want:
+            _wrong.append(f"{rt}: {c!r} -> {d}")
+    _bad_inputs = [{"command": ["rm", "-rf", "x"]}, {}] if rt == "cursor" else \
+        [{"tool_name": payload(rt, "")["tool_name"], "tool_input": ti} for ti in ({}, {"command": ["rm", "-rf", "x"]}, None)]
+    for bad in _bad_inputs:
+        rc, d = run_pt(rt, bad)
+        if rc != 0 or d != want:
+            _wrong.append(f"{rt}: entrada sin comando de texto {bad!r} -> {d} (fail-closed: {want})")
+check("NN-08 (A1): variantes normalizadas en los 4 runtimes, y una herramienta de shell sin `command` de texto (falta, lista, "
+      "tool_input nulo) decide como entrada no analizable (fail-closed)", not _wrong, "; ".join(_wrong[:5]))
+rc, d = run_pt("claude-code", payload("claude-code", ""))
+check("NN-08: un comando vacío (texto) no interviene", rc == 0 and d is None, str(d))
 
 # --- Codificación en Windows (E7c, H-E7b-1/2): sea_hooks.py como subproceso con la tubería en cp1252 ---
 def run_cp1252(args, raw):
@@ -1380,6 +1494,14 @@ else:
     r4 = run_launcher({"python3": broken, "python": broken, "py": broken}, [SEA, "stop", "--runtime", "claude-code"])
     check("Lanzador: ningún intérprete funciona -> en otros eventos no escribe en stdout (no contamina la decisión del hook)",
           r4.returncode == 0 and r4.stdout == b"", f"rc={r4.returncode} out={r4.stdout!r}")
+    r7 = run_launcher({"python3": broken, "python": broken, "py": broken}, [SEA, "pre-tool", "--runtime", "claude-code"], pre_in)
+    try:
+        _h7 = _pj.loads(r7.stdout.decode("ascii"))["hookSpecificOutput"]
+        _ok7 = r7.returncode == 0 and _h7["permissionDecision"] == "ask" and "NN-08" in _h7["permissionDecisionReason"]
+    except Exception:
+        _ok7 = False
+    check("Lanzador: ningún intérprete funciona en pre-tool -> JSON ASCII con «ask» (fail-closed de NN-08, auditoría A1) y sale con 0",
+          _ok7, f"rc={r7.returncode} out={r7.stdout!r}")
     r5 = run_launcher({"python3": 'case "$1" in -c) exit 0;; *) exit 3;; esac'}, [SEA, "session-start", "--runtime", "claude-code"])
     check("Lanzador: el intérprete funciona pero el script falla (exit 3) -> el lanzador sale con 0", r5.returncode == 0, f"rc={r5.returncode}")
     r6 = run_launcher({}, [SEA, "session-start", "--runtime", "claude-code"], real_python_as=["python3"])
@@ -1529,6 +1651,18 @@ if shutil.which("git") and BASH:
                 if _ma != _mb:
                     _bad.append("B:CLAUDE.md")
         check("evals/_shared/sandbox.sh reproduce los fixtures de setup_sandbox.sh (estados A, B y C)", not _bad, "; ".join(_bad))
+        # A3 (1.2.3): recrear un sandbox marcado cuyo remoto vecino no es el suyo aborta ANTES de borrar nada.
+        _a, _rem = os.path.join(_tmp, "mA"), os.path.join(_tmp, "mA-remote.git")
+        _mark = os.path.join(_rem, "sea-sandbox-remote")
+        _own = os.path.isfile(_mark) and open(_mark, encoding="utf-8").read().strip() != ""
+        with open(_mark, "w", encoding="utf-8") as _f:
+            _f.write("/otra/ruta\n")
+        with open(os.path.join(_rem, "ajeno.txt"), "w", encoding="utf-8") as _f:
+            _f.write("dato\n")
+        _r = subprocess.run([BASH, os.path.join(ROOT, "tests/sandbox/setup_sandbox.sh"), "A", _a, "--sin-hooks"], capture_output=True, text=True, encoding="utf-8", errors="replace")
+        check("setup_sandbox.sh (A3): el remoto se marca al crearlo, y con un remoto ajeno junto a un sandbox válido aborta sin borrar ninguno de los dos",
+              _own and _r.returncode == 2 and os.path.isfile(os.path.join(_a, ".sea-sandbox")) and os.path.isfile(os.path.join(_rem, "ajeno.txt")),
+              f"marca={_own} rc={_r.returncode} {_r.stderr[-120:]}")
     finally:
         shutil.rmtree(_tmp, ignore_errors=True)
 else:

@@ -24,6 +24,77 @@ Las entradas anteriores a 1.2.2 conservan el detalle de proceso (identificadores
 cambios de comportamiento. La etiqueta `1.0.0` se asignó el 2026-10-09 al
 cumplirse la *Puerta de salida hacia 1.0.0* (más abajo).
 
+## [1.2.3] — sin publicar
+
+Versión PATCH de endurecimiento, en curso, a partir de una auditoría externa de 1.2.2 (hallazgos A1–A4, M1–M9, B1–B2). Esta entrada recoge lo hecho hasta
+ahora; la etiqueta `v1.2.3` la crea el propietario al cumplir la *Puerta de salida hacia 1.2.3* (más abajo). Este cambio no crea etiquetas.
+
+### Corregido (seguridad: NN-08, hallazgo A1)
+
+- **Variantes equivalentes que pasaban sin decisión.** Antes de comparar con la lista de operaciones destructivas, `sea_hooks.py` normaliza el comando
+  (`normalize_command()`): ruta o `.exe` de git (`/usr/bin/git`, `git.exe`, `"C:\Program Files\Git\bin\git.exe"`) y opciones globales de git anteriores al
+  subcomando (`-C ruta`, `-c clave=valor`, `--git-dir`, `--work-tree`, `--no-pager`…). Se reconocen además `git clean --force`, `rm --recursive --force` y las
+  opciones de `rm` en cualquier posición (`rm -r -v -f`), y `git restore`/`git checkout` sobre todo el árbol con opciones (`git restore --worktree .`,
+  `git checkout HEAD~1 -- .`; `git restore --staged .` sigue sin intervenir porque solo toca el índice).
+- **Operaciones nuevas en la lista** (motivos nuevos, al final para no alterar los existentes): checkout forzado (`git checkout -f`, `git switch --discard-changes`),
+  `git stash clear|drop`, borrado recursivo sin forzar (`rm -r`, `Remove-Item -Recurse` y alias; `git rm -r` no cuenta), `rd|del /s` de cmd y `find -delete`.
+  **Cambio de comportamiento deliberado:** `rm -r x` y `Remove-Item -Recurse x` piden confirmación (NN-08 cubre el «borrado masivo»).
+- **Fail-closed de extremo a extremo.** Una herramienta de shell cuyo `tool_input` no es un objeto o cuyo comando falta o no es texto se trata como entrada no
+  analizable (`ask`/`deny`), y el lanzador del plugin (`scripts/sea-python.sh`) emite `ask` en pre-tool cuando no encuentra un intérprete de Python (antes salía en
+  silencio). Un comando vacío sigue sin intervenir.
+- Falso positivo **conservado a propósito y documentado**: el texto entre comillas también se analiza (`echo "git reset --hard"` pide confirmación), porque
+  `bash -c`, `eval` o `Invoke-Expression` sí lo ejecutan.
+
+### Corregido (herramientas de desarrollo: A2, A3, A4)
+
+No llegan al usuario del plugin, pero tocan rutas o datos del desarrollador.
+
+- **A2 — `scripts/eval_report.py`** ya no usa la shell: la limpieza de temporales de `--keep-temp` era un `os.system` con una ruta tomada del `result.json`. Ahora
+  solo borra un `/tmp/claude-eval-<nombre>` con caracteres seguros, real (no un enlace) y del usuario actual, con `shutil.rmtree`. El destino de cada traza de
+  `--collect-traces` debe quedar dentro de esa carpeta; un nombre de caso con separadores o `..` se rechaza con aviso. La salida se fuerza a UTF-8 (en Windows,
+  una tubería en cp1252 no podía escribir `◀`).
+- **A3 — `tests/sandbox/setup_sandbox.sh`** marca el remoto al crearlo (`<remoto>/sea-sandbox-remote`, con la ruta de su sandbox) y lo valida **antes** de
+  borrar nada: un remoto vecino sin esa marca, o con otra ruta, aborta sin tocar ni el sandbox ni el remoto. Los sandboxes creados con versiones anteriores no
+  tienen la marca: hay que borrar su remoto a mano una vez.
+- **A4/C7 — `scripts/build_zip.sh`** empaqueta, en ambos modos, solo archivos versionados (`git ls-files`, con el contenido del árbol de trabajo): nada ignorado
+  o sin versionar (`.env.*`, credenciales, `*.pem`, `docs/internal/`, `__pycache__`) llega al ZIP. Requiere git y un checkout. Lee la versión de `manifest.yaml`
+  sin Python (en Git Bash `python3` puede ser un alias que no ejecuta nada; parte de M4).
+
+### Cambiado
+
+- README (inglés y español): la descripción de NN-08 acota lo que garantiza (normalización, fail-closed, límites: alias, variables, scripts; capa adicional, no sandbox).
+- `manifest.yaml > agent.version` = 1.2.3 y vistas regeneradas (`plugin.json` = 1.2.3).
+
+### Pruebas
+
+- Corpus adversarial de NN-08 en `tests/test_agent.py`: 30 variantes que deben pedir confirmación, 23 negativos que no deben intervenir, variantes normalizadas y
+  entradas sin comando de texto en los cuatro runtimes, y el lanzador sin intérprete en pre-tool (shell POSIX; en Windows se comprobó a mano con Git Bash).
+  La identidad byte a byte con 1.1.2 en modo «es» se mantiene para las entradas de siempre.
+- Reproducciones de A2 (destino de trazas, objetivos de limpieza y un `result.json` manipulado), A3 (sandbox válido con remoto ajeno) y A4 (repositorio sintético con
+  archivos sensibles sin versionar; necesita `zip`, se omite en Windows sin él y se comprobó a mano con un `zip` sustituto).
+
+### Añadido
+
+- `AGENTS.md` y `CLAUDE.md` en la raíz para quien desarrolla este repositorio (no son los adaptadores de `adapters/`, que se instalan en proyectos destino): apuntan al
+  estado de sesión local `docs/internal/ESTADO_SESION.md` y resumen las reglas de trabajo. No entran en el ZIP de distribución.
+
+### Corregido
+
+- `SPECIFICATION.md` §9 ya cuenta `v1.2.2` entre las etiquetas publicadas, y la entrada 1.2.2 registra el estado de su puerta de salida.
+
+### Pendiente dentro de 1.2.3
+
+Stop (M1: validación posterior a la última edición, rutas canónicas), referencias del plugin (M2), revisor con `Bash` (M3), herramientas de desarrollo
+(resto de M4, M6, M7) y documentación (M9, B1, B2).
+
+### Puerta de salida hacia 1.2.3
+
+1. Suite estructural, los tres `--check`, `claude plugin validate --strict` (plugin y repositorio) y `tests/acceptance/hooks_practice.sh` en verde, con el corpus de NN-08.
+2. CI en verde en Linux y Windows sobre el commit a etiquetar, sin omisiones inesperadas en Linux.
+3. Las reproducciones de A2, A3 y A4 incorporadas como pruebas.
+4. Instalación limpia del plugin con la CLI actual en `es` y `en`, y regresión con modelo de los casos críticos y `regression-en` (cambia lo que llega al modelo si se corrigen M2 o M3).
+5. «Private vulnerability reporting» activado.
+
 ## [1.2.2] — 2026-10-13
 
 Versión PATCH de cierre de release: metadatos, documentación y comunidad. **No cambia el comportamiento**: `core/`, `modules/`, las reglas NN, `hooks.json`, las descripciones
@@ -68,6 +139,16 @@ La etiqueta `v1.2.2` solo se asigna cuando se cumplen TODOS estos puntos:
 2. CI en verde en Linux y Windows sobre el commit a etiquetar (incluida la guarda de versión).
 3. `git diff --stat v1.2.1 -- core modules adapters/skills adapters/claude-code/agents plugins/claude-code/senior-engineering-agent/hooks` vacío
    (en `sea_hooks.py`, solo los cambios sin efecto descritos arriba), y «Private vulnerability reporting» activado en Settings.
+
+### Estado de la puerta hacia 1.2.2
+
+Etiqueta `v1.2.2` creada por el propietario el 2026-10-13 sobre `d2e1055`, con GitHub Release. Comprobado de nuevo el 2026-10-15:
+
+- **Punto 1:** suite estructural en verde en Windows (672 OK, 4 omitidas por faltar `zip`, shell POSIX o `bwrap`/`socat` en Windows), los tres `--check` en verde y
+  `claude plugin validate --strict` (plugin y marketplace, CLI 2.1.301) en verde.
+- **Punto 2:** `structural-tests` en verde sobre `d2e1055` en `main`.
+- **Punto 3:** el `git diff --stat v1.2.1 v1.2.2` de las rutas indicadas está vacío; `sea_hooks.py` solo cambia en lo descrito arriba. «Private vulnerability reporting» no se
+  pudo comprobar sin sesión en GitHub: lo confirma el propietario.
 
 ## [1.2.1] — 2026-10-11
 

@@ -168,7 +168,7 @@ falta tocar `CLAUDE.md` ni copiar nada. Es una **vista generada** (`plugins/clau
 `python3 scripts/generate_plugin.py`), no una segunda fuente de verdad. Los
 hooks de Python usan un lanzador que prueba `python3`, `python` y `py -3`
 y fuerza UTF-8 (`PYTHONUTF8=1`, `PYTHONIOENCODING=utf-8`); los hooks leen stdin como UTF-8 y
-emiten JSON ASCII, y NN-08 pide confirmación (fail-closed) si no puede analizar el comando.
+emiten JSON ASCII, y NN-08 pide confirmación (fail-closed) si no puede analizar el comando o no hay un intérprete de Python que funcione.
 En Windows se recomienda Git Bash para los hooks. Los hooks de un mismo evento
 corren en paralelo y la documentación no garantiza su orden: cada parte del
 núcleo lleva la cabecera «[Núcleo SEA — parte X de 6 (orden canónico 00→05)]».
@@ -265,6 +265,12 @@ mínimas y checklist para construir un adaptador nuevo sin tocar `core/`.
 - Este agente no anula políticas de seguridad/aprobación nativas de la
   plataforma donde corre — es un piso de comportamiento adicional, no un
   techo que las sustituye.
+- Los hooks son heurísticos. NN-08 compara con una lista fija de operaciones
+  destructivas tras normalizar la ruta y las opciones globales de git
+  (`/usr/bin/git`, `git.exe`, `git -C dir`) y las opciones largas; no resuelve
+  alias de shell o de git, variables (`$GIT reset --hard`), funciones ni
+  scripts, y también analiza el texto entre comillas (`echo "git reset --hard"`
+  pide confirmación a propósito). Es una capa adicional, no un sandbox.
 - Ver `SPECIFICATION.md §6` y `§7` para el detalle completo de qué es
   portable, qué es adaptable y qué depende fuertemente de una plataforma.
 

@@ -11,8 +11,12 @@
 #            LICENSE, NOTICE. Whitelist explícita (más seguro que "todo menos X").
 #   repo  -> senior-engineering-agent-<versión>-REPO-COMPLETO.zip
 #            Repositorio completo para seguir desarrollando (incluye tests/ y
-#            scripts/). Excluye .git, dist/, cachés, *.zip, .env real y
-#            carpetas tests-log-*.
+#            scripts/).
+#
+# Ambos modos empaquetan SOLO archivos versionados en git (`git ls-files`, con
+# su contenido del árbol de trabajo): nada ignorado o sin versionar llega al
+# ZIP (.env.*, credenciales, docs/internal/, resultados locales…). Auditoría
+# A4/C7, 1.2.3. Requiere git y un checkout del repositorio.
 #
 # En ambos casos la carpeta raíz DENTRO del ZIP se llama siempre
 # `senior-engineering-agent/` (los @import de los adaptadores dependen de ese
@@ -35,7 +39,10 @@ DIST_DIR="${DIST_DIR:-${REPO_ROOT}/dist}"
 export SOURCE_DATE_EPOCH="${SOURCE_DATE_EPOCH:-1767225600}"
 export TZ=UTC LC_ALL=C
 
-VERSION="$(python3 -c "import yaml; print(yaml.safe_load(open('${REPO_ROOT}/manifest.yaml'))['agent']['version'])")"
+# Versión sin depender de Python (en Git Bash `python3` puede ser un alias que no ejecuta nada): `agent.version` es la primera
+# línea `  version: "X.Y.Z"` de manifest.yaml.
+VERSION="$(sed -n 's/^  version: *"\([0-9][0-9.]*\)".*/\1/p' "${REPO_ROOT}/manifest.yaml" | head -n 1)"
+[ -n "${VERSION}" ] || { echo "No se pudo leer agent.version de manifest.yaml." >&2; exit 2; }
 if [ "${MODE}" = "dist" ]; then
   ZIP_PATH="${DIST_DIR}/${PKG_NAME}-${VERSION}.zip"
 else
@@ -47,28 +54,26 @@ DIST_INCLUDE=(core modules adapters project-knowledge-templates docs
               README.es.md CHANGELOG.md LICENSE NOTICE)
 
 command -v zip >/dev/null || { echo "Falta la utilidad 'zip'." >&2; exit 2; }
+command -v git >/dev/null && git -C "${REPO_ROOT}" rev-parse --is-inside-work-tree >/dev/null 2>&1   || { echo "ABORTADO: build_zip.sh empaqueta solo archivos versionados y necesita git y un checkout del repositorio." >&2; exit 2; }
 mkdir -p "${DIST_DIR}"
 
 # stage_tree <dir-padre>: deja el árbol normalizado en <dir-padre>/senior-engineering-agent
 stage_tree() {
   local parent="$1" stage="$1/${PKG_NAME}"
   mkdir -p "${stage}"
+  local list="${parent}/files.lst" p
   if [ "${MODE}" = "dist" ]; then
-    local p
     for p in "${DIST_INCLUDE[@]}"; do
-      if [ -e "${REPO_ROOT}/${p}" ]; then
-        mkdir -p "$(dirname "${stage}/${p}")"
-        cp -R "${REPO_ROOT}/${p}" "${stage}/${p}"
-      else
-        echo "ADVERTENCIA: ${p} no existe en el repositorio, se omite." >&2
-      fi
+      [ -n "$(git -C "${REPO_ROOT}" ls-files -- "${p}" | head -n 1)" ] || echo "ADVERTENCIA: ${p} no está versionado, se omite." >&2
     done
+    git -C "${REPO_ROOT}" ls-files -z -- "${DIST_INCLUDE[@]}" > "${list}.all"
   else
-    ( cd "${REPO_ROOT}" && tar \
-        --exclude='./.git' --exclude='./dist' --exclude='__pycache__' \
-        --exclude='.pytest_cache' --exclude='./tests-log-*' --exclude='*.zip' \
-        --exclude='./.env' --exclude='./sandbox' -cf - . ) | tar -C "${stage}" -xf -
+    git -C "${REPO_ROOT}" ls-files -z > "${list}.all"
   fi
+  # Se omiten los versionados borrados en el árbol de trabajo.
+  ( cd "${REPO_ROOT}" && while IFS= read -r -d '' p; do [ -e "${p}" ] && printf '%s\0' "${p}"; done < "${list}.all" ) > "${list}"
+  ( cd "${REPO_ROOT}" && tar --null -T "${list}" -cf - ) | tar -C "${stage}" -xf -
+  rm -f "${list}" "${list}.all"
   find "${stage}" -type d -exec chmod 755 {} +
   find "${stage}" -type f -exec chmod 644 {} +
   find "${stage}" -type f -name '*.sh' -exec chmod 755 {} +
