@@ -1554,7 +1554,7 @@ if mj is not None:
 # evals versionados dentro del plugin; resultados fuera del repo
 EVALS = os.path.join(PLUGIN, "evals")
 EVAL_CASES = sorted(d for d in os.listdir(EVALS) if os.path.isfile(os.path.join(EVALS, d, "prompt.md")))
-VALID_TAGS = {"regression", "regression-en", "critical", "capability", "observational"}
+VALID_TAGS = {"regression", "regression-en", "critical", "capability", "observational", "strict-tools"}
 CRITICAL_EXPECTED = {"test-00-instalacion", "test-02b-claude-md-previo", "test-07-inyeccion", "test-13-destructivo"}
 READ_ONLY_TOOLS = {"Read", "Glob", "Grep", "NotebookRead", "Skill", "AskUserQuestion", "Agent", "Task", "TodoWrite"}
 
@@ -1616,7 +1616,8 @@ for case in EVAL_CASES:
           bool(tags) and tags <= VALID_TAGS and len(tags & {"regression", "regression-en", "capability"}) == 1
           and (("capability" in tags) == case.startswith("cap-")) and (("regression-en" in tags) == case.startswith("en-"))
           and (("critical" in tags) == (case in CRITICAL_EXPECTED))
-          and ("observational" not in tags or "capability" in tags), str(sorted(tags)))
+          and ("observational" not in tags or "capability" in tags)
+          and ("strict-tools" not in tags or bool(fm.get("allowed_tools"))), str(sorted(tags)))  # strict-tools: conjunto cerrado declarado (M6)
     check(f"evals/{case}: runs = 3 (todos los casos de regresión y de capacidad)", fm.get("runs") == 3, str(fm.get("runs")))
     if os.path.isfile(os.path.join(cdir, "case.yaml")):
         cy = yaml.safe_load(open(os.path.join(cdir, "case.yaml"), encoding="utf-8")) or {}
@@ -1782,7 +1783,7 @@ check("A2: test-08b etiqueta-requerido es indicador (arm: with-only) y evals/REA
       _grader_cfg("test-08b-alcance-autorizado", "etiqueta-requerido").get("arm") == "with-only"
       and "Cambios de medición en E3d" in read(f"{PLUGIN_REL}/evals/README.md") and "ampliaciones **no** autorizadas" in read(f"{PLUGIN_REL}/evals/README.md"), "falta arm o documentación")
 check("A3: cap-certeza-sin-ejecutar: capability, solo Read/Glob/Grep (sin Bash), estado A, y sus graders (el de ejecución es indicador)",
-      _cert_fm.get("tags") == ["capability"] and set(_cert_fm.get("allowed_tools") or []) == {"Read", "Glob", "Grep"}
+      _cert_fm.get("tags") == ["capability", "strict-tools"] and set(_cert_fm.get("allowed_tools") or []) == {"Read", "Glob", "Grep"}
       and "sea_state A" in read(f"{_cert_dir}/setup.sh") and "price_with_tax(100, discount=150)" in read(f"{_cert_dir}/prompt.md")
       and sorted(os.path.basename(g)[:-3] for g in glob.glob(os.path.join(ROOT, _cert_dir, "graders", "*.md")))
       == ["declara-que-no-ejecuto", "no-hecho-verificado-sin-ejecutar", "numero-correcto"]
@@ -2365,10 +2366,42 @@ if BASH:
                 check(f"scripts/eval.sh {_mode} {' '.join(_extra)}: construye la orden esperada con claude simulado (sin llamar al modelo)", _ok, f"rc={r.returncode} args={_args[:14]} err={r.stderr[-160:]}")
                 if os.path.isfile(_argf):
                     os.remove(_argf)
+            # M6 (1.2.3): `capability` sin más concedería Bash a cap-certeza-sin-ejecutar (strict-tools): aborta SIN llamar a claude;
+            # con --exclude-strict evalúa una copia del plugin sin ese caso
+            _argf = os.path.join(_fake, "args.txt")
+            _env = dict(os.environ, PATH=_fake + os.pathsep + os.environ["PATH"], FAKE_ARGS=_argf)
+            r = subprocess.run([BASH, os.path.join(ROOT, "scripts", "eval.sh"), "capability", "--out", os.path.join(_fake, "out-m6a")], capture_output=True,
+                               text=True, encoding="utf-8", errors="replace", env=_env)
+            check("scripts/eval.sh capability (M6): aborta antes de llamar a claude si la concesión invalidaría un caso strict-tools",
+                  r.returncode == 2 and "cap-certeza-sin-ejecutar" in r.stderr and not os.path.isfile(_argf), f"rc={r.returncode} err={r.stderr[-200:]}")
+            r = subprocess.run([BASH, os.path.join(ROOT, "scripts", "eval.sh"), "capability", "--exclude-strict", "--out", os.path.join(_fake, "out-m6b")],
+                               capture_output=True, text=True, encoding="utf-8", errors="replace", env=_env)
+            _args = open(_argf, encoding="utf-8").read().split("\n") if os.path.isfile(_argf) else []
+            _tgt = _args[2] if len(_args) > 2 else ""
+            check("scripts/eval.sh capability --exclude-strict (M6): evalúa una copia del plugin sin el caso strict-tools y concede Bash al resto",
+                  r.returncode == 0 and _tgt != PLUGIN and "--allow-tools" in _args and "Bash" in _args
+                  and os.path.isdir(os.path.join(PLUGIN, "evals", "cap-certeza-sin-ejecutar")), f"rc={r.returncode} args={_args[:14]} err={r.stderr[-160:]}")
     finally:
         _shutil.rmtree(_fake, ignore_errors=True)
+
 else:
     skip("scripts/eval.sh --with-only / regression-en con claude simulado", "bash no disponible en PATH")
+
+# M6 (1.2.3): cálculo de concesiones por etiqueta y caso (scripts/eval_grants.py), sin modelo
+_eg_spec = _ilu.spec_from_file_location("eval_grants", os.path.join(ROOT, "scripts", "eval_grants.py"))
+_eg = _ilu.module_from_spec(_eg_spec)
+_eg_spec.loader.exec_module(_eg)
+_EV = os.path.join(PLUGIN, "evals")
+_cap, _reg = _eg.analyze(_EV, tags=["capability"]), _eg.analyze(_EV, tags=["regression"])
+_solo = _eg.analyze(_EV, case_glob="cap-certeza-sin-ejecutar")
+_excl = _eg.analyze(_EV, tags=["capability"], exclude=["cap-certeza-sin-ejecutar"])
+check("eval_grants.py (M6): filtra por etiqueta, detecta el caso strict-tools que la unión invalidaría y lo resuelve medido aparte o excluido",
+      "cap-certeza-sin-ejecutar" in _cap["cases"] and _cap["strict_conflicts"] == ["cap-certeza-sin-ejecutar"] and "Bash" in _cap["grants"]
+      and not any(c.startswith("cap-") for c in _reg["cases"]) and not _reg["strict_conflicts"]
+      and _solo["grants"] == [] and not _solo["strict_conflicts"] and not _excl["strict_conflicts"] and "cap-certeza-sin-ejecutar" not in _excl["cases"],
+      f"cap={_cap['strict_conflicts']} solo={_solo} excl={_excl['strict_conflicts']}")
+check("evals: cap-certeza-sin-ejecutar lleva la etiqueta strict-tools (conjunto de herramientas cerrado a propósito)",
+      "strict-tools" in read(PLUGIN_REL + "/evals/cap-certeza-sin-ejecutar/prompt.md").split("---")[1], "falta la etiqueta")
 
 # Guarda de codificación (E7c, ampliada en E3d): la salida de sea_hooks.py, del lanzador y de los scripts es UTF-8; con text=True sin encoding,
 # subprocess la decodifica con la codificación local (cp1252 en Windows) y la suite ve «comprobaciÃ³n», y un byte inválido hace fallar el
@@ -2404,6 +2437,74 @@ _vg_spec.loader.exec_module(_vg)
 check("Guarda de versión: falla solo si el plugin cambió desde la etiqueta y plugin.json.version es la de la etiqueta",
       _vg.violates(True, "1.2.1", "v1.2.1") and not _vg.violates(True, "1.2.2", "v1.2.1")
       and not _vg.violates(False, "1.2.1", "v1.2.1") and not _vg.violates(False, "1.2.2", "v1.2.1"), "criterio incorrecto")
+check("Guarda de versión (M7): rechaza bajar de versión, un formato que no es X.Y.Z y compara números, no texto (1.10.0 > 1.9.9)",
+      _vg.violates(True, "1.2.1", "v1.2.2") and _vg.violates(False, "1.2.1", "v1.2.2") and _vg.violates(False, "1.2", "v1.2.2")
+      and not _vg.violates(True, "1.10.0", "v1.9.9"), "criterio incorrecto")
+if shutil.which("git"):
+    def _vg_repo(tmp):
+        """Repositorio mínimo con el guardia, manifest.yaml y plugin.json; devuelve (ruta, función de la versión, función de ejecución)."""
+        rp = os.path.join(tmp, "r")
+        os.makedirs(os.path.join(rp, "scripts"))
+        os.makedirs(os.path.join(rp, PLUGIN_REL, ".claude-plugin"))
+        shutil.copy(os.path.join(ROOT, "scripts", "check_version_guard.py"), os.path.join(rp, "scripts"))
+
+        def setv(v, extra=None):
+            with open(os.path.join(rp, "manifest.yaml"), "w", encoding="utf-8") as f:
+                f.write(f'agent:\n  version: "{v}"\n')
+            with open(os.path.join(rp, PLUGIN_REL, ".claude-plugin", "plugin.json"), "w", encoding="utf-8") as f:
+                _json.dump({"version": v, **({"x": extra} if extra else {})}, f)
+
+        def run():
+            r = subprocess.run([sys.executable, os.path.join(rp, "scripts", "check_version_guard.py")], capture_output=True, text=True,
+                               encoding="utf-8", errors="replace")
+            return r.returncode, r.stdout.strip()
+        return rp, setv, run
+
+    with tempfile.TemporaryDirectory() as tmp:
+        rp, setv, run = _vg_repo(tmp)
+        setv("1.0.0")
+        _vg_bad = []
+        rc, out = run()
+        if rc != 1 or "error de git" not in out:
+            _vg_bad.append(f"sin repositorio: rc={rc} {out[:80]}")
+        g = lambda *a: subprocess.run(["git", "-C", rp, "-c", "user.name=t", "-c", "user.email=t@t", *a], capture_output=True)
+        g("init", "-q"); g("add", "-A"); g("commit", "-qm", "1.0.0")
+        rc, out = run()
+        if rc != 0 or "no hay etiquetas" not in out:
+            _vg_bad.append(f"sin etiquetas: rc={rc} {out[:80]}")
+        g("tag", "v1.0.0")
+        rc, out = run()
+        if rc != 0:
+            _vg_bad.append(f"HEAD etiquetado con su versión: rc={rc} {out[:80]}")
+        setv("1.0.0", extra="cambio"); g("commit", "-qam", "cambio sin subir")
+        rc, out = run()
+        if rc != 1 or "no sube" not in out:
+            _vg_bad.append(f"plugin cambiado sin subir: rc={rc} {out[:80]}")
+        setv("0.9.9", extra="cambio"); g("commit", "-qam", "baja")
+        rc, out = run()
+        if rc != 1 or "menor" not in out:
+            _vg_bad.append(f"versión menor que la etiqueta: rc={rc} {out[:80]}")
+        setv("1.0.1", extra="cambio"); g("commit", "-qam", "1.0.1")
+        rc, out = run()
+        if rc != 0:
+            _vg_bad.append(f"sube a 1.0.1: rc={rc} {out[:80]}")
+        g("tag", "v1.0.2")
+        rc, out = run()
+        if rc != 1 or "v1.0.2" not in out:
+            _vg_bad.append(f"etiqueta de HEAD distinta de la versión: rc={rc} {out[:80]}")
+        g("tag", "-d", "v1.0.2"); g("tag", "v1.0.1")
+        rc, out = run()
+        if rc != 0 or "v1.0.0" not in out:
+            _vg_bad.append(f"release etiquetada: compara con la etiqueta anterior: rc={rc} {out[:80]}")
+        with open(os.path.join(rp, "manifest.yaml"), "w", encoding="utf-8") as f:
+            f.write('agent:\n  version: "1.0.2"\n')
+        rc, out = run()
+        if rc != 1 or "iguales" not in out:
+            _vg_bad.append(f"manifest y plugin.json distintos: rc={rc} {out[:80]}")
+        check("Guarda de versión (M7, CLI): sin repositorio falla, sin etiquetas pasa, exige subir si el plugin cambió, rechaza bajar, "
+              "contrasta la etiqueta de HEAD con la versión y la etiqueta anterior, y manifest = plugin.json", not _vg_bad, "; ".join(_vg_bad))
+else:
+    skip("Guarda de versión (M7, CLI) con un repositorio temporal", "git no disponible")
 _ci20 = read(".github/workflows/structural-tests.yml")
 check("CI: checkout con fetch-depth: 0 y paso de la guarda de versión (scripts/check_version_guard.py)",
       "fetch-depth: 0" in _ci20 and "scripts/check_version_guard.py" in _ci20, "falta en structural-tests.yml")

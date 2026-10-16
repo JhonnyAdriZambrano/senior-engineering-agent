@@ -81,6 +81,27 @@ No llegan al usuario del plugin, pero tocan rutas o datos del desarrollador.
   o sin versionar (`.env.*`, credenciales, `*.pem`, `docs/internal/`, `__pycache__`) llega al ZIP. Requiere git y un checkout. Lee la versión de `manifest.yaml`
   sin Python (en Git Bash `python3` puede ser un alias que no ejecuta nada; parte de M4).
 
+### Corregido (evaluación y publicación: M6, M7, M4)
+
+- **M6 — `scripts/eval.sh`** ya no concede a un caso herramientas que excluye a propósito. El cálculo pasa a `scripts/eval_grants.py` (filtra por etiqueta y
+  por `--case`, no solo por `--case`). Un caso con la etiqueta nueva `strict-tools` (hoy `cap-certeza-sin-ejecutar`, sin Bash) que recibiría una herramienta que
+  no declara hace **abortar** la corrida; con `--exclude-strict` se evalúa una copia temporal del plugin sin esos casos, que se miden aparte con `--case`.
+  Así `eval.sh capability` ya no repite la medición inválida que recoge `docs/MEASUREMENTS.md`.
+- **M7 — `scripts/check_version_guard.py`**: exige que la versión **suba** (no solo que cambie) si el plugin cambió, rechaza bajar de versión y formatos que no
+  son X.Y.Z, compara números (1.10.0 > 1.9.9), exige `manifest.yaml` = `plugin.json`, contrasta la etiqueta de HEAD con la versión (y entonces compara con la
+  etiqueta anterior) y trata un error de git como fallo, no como «no hay etiquetas».
+- **M4 (resto)** — los requisitos de la instalación manual quedan a la vista en los README: sus hooks llaman a `python3` sin el lanzador del plugin (en Windows
+  puede ser un alias que no ejecuta nada; se indica cómo cambiarlo) y, sin intérprete, no se ejecutan. Regenerar el ZIP necesita `git` y un checkout.
+
+### Corregido (documentación: M9, B1, B2)
+
+- **M9** — `CONTRIBUTING.md` ya no llama vista generada a `core/compact.md`: es un resumen mantenido a mano (fuente de `scripts/generate_compact.py`), que hay
+  que revisar cuando cambia `core/`; lo generado son los bloques de los adaptadores.
+- **B1** — `tests/GUIA_BENCHMARK.md` ya no da por pendiente el hook `Stop` ni dice que Claude Code y Codex tienen el mismo juego de subagentes (2 y 3);
+  el TOML del explorador de Codex ya no cita un archivo de Claude Code retirado.
+- **B2** — «el proyecto no usa variables de entorno» (entrada 1.2.2, que no se reescribe) era demasiado absoluto: `README.es.md` dice ahora que no hace falta
+  un `.env` ni credenciales y enumera las variables opcionales (`SEA_LANGUAGE`, `EVAL_MAX_COST_USD`, `ABLATE_MAX_COST_USD`, `DIST_DIR`, `SOURCE_DATE_EPOCH`).
+
 ### Cambiado
 
 - README (inglés y español): la descripción de NN-08 acota lo que garantiza (normalización, fail-closed, límites: alias, variables, scripts; capa adicional, no sandbox).
@@ -94,6 +115,9 @@ No llegan al usuario del plugin, pero tocan rutas o datos del desarrollador.
 - Stop (M1): `--check` por programa, orden edición/validación (antes, después, entre dos ediciones, mismo comando) y homónimo en otro directorio.
 - Plugin (M2): cierre de referencias del contenido que llega al modelo, nota de rutas de las Skills y hook de rutas en `startup`, `clear` y `compact`.
 - `README.md` y `README.es.md` listan `AGENTS.md` y `CLAUDE.md` en el árbol (la prueba del árbol fallaba desde que se versionaron).
+- M6: `eval_grants.py` por etiqueta, conflicto de `strict-tools`, exclusión, y `eval.sh` sin modelo (aborta antes de llamar a `claude`).
+- M7: criterio numérico y escenarios de CLI sobre un repositorio git temporal (sin repositorio, sin etiquetas, cambio sin subir, regresión, etiqueta de
+  HEAD distinta, release etiquetada, manifest distinto de plugin.json).
 - Reproducciones de A2 (destino de trazas, objetivos de limpieza y un `result.json` manipulado), A3 (sandbox válido con remoto ajeno) y A4 (repositorio sintético con
   archivos sensibles sin versionar; necesita `zip`, se omite en Windows sin él y se comprobó a mano con un `zip` sustituto).
 
@@ -108,7 +132,8 @@ No llegan al usuario del plugin, pero tocan rutas o datos del desarrollador.
 
 ### Pendiente dentro de 1.2.3
 
-Herramientas de desarrollo (resto de M4, M6, M7) y documentación (M9, B1, B2).
+Ningún hallazgo de la auditoría queda abierto en el código; falta cumplir la puerta (abajo). Fuera de 1.2.3: paquete de evidencia de mediciones (M5),
+dependencias de CI fijadas por SHA y con hash (M8), validación en uso real de otros runtimes.
 
 ### Puerta de salida hacia 1.2.3
 

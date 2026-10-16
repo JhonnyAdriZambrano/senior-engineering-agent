@@ -8,12 +8,15 @@ Edit only the **single source**:
 
 - `core/*.md` and `modules/*.md` (the normative content),
 - `manifest.yaml` (identity, version, module index, language settings),
-- `capabilities.yaml`, `adapters/hooks/sea_hooks.py`, the hand-written adapter files and `project-knowledge-templates/`.
+- `capabilities.yaml`, `adapters/hooks/sea_hooks.py`, the hand-written adapter files and `project-knowledge-templates/`,
+- `core/compact.md`: a **hand-maintained summary** of `core/00–05` for runtimes without `@import`. No script rewrites it: when a rule in
+  `core/` changes, update the summary yourself and review that it still says the same thing (the tests check sync and some clauses, not
+  full semantic equivalence).
 
 These are **generated views**; never edit them by hand:
 
 - `adapters/skills/` (from `modules/`) — `scripts/generate_skills.py`
-- `core/compact.md` and the compact-core blocks in the adapters — `scripts/generate_compact.py`
+- the compact-core blocks in the adapters (copied from `core/compact.md`) — `scripts/generate_compact.py`
 - `plugins/claude-code/senior-engineering-agent/` (except `evals/`, which is hand-written) and `adapters/hooks/i18n.json` — `scripts/generate_plugin.py`
 
 After changing the source, regenerate and verify that nothing drifts:

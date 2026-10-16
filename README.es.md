@@ -13,9 +13,16 @@ Projects y Gemini Gems sin reescribir el comportamiento en cada plataforma.
 - **Para usar el agente** (cargarlo en Claude Code, Codex, Cursor, Gemini
   CLI, ChatGPT Projects o Gemini Gems): ninguno además del runtime mismo —
   es texto plano (Markdown/YAML/TOML) que ese runtime consume directamente.
+- **Hooks de la instalación manual** (`adapters/*/settings.hooks.json`,
+  `hooks.json`): llaman directamente a `python3`, **sin** el lanzador del
+  plugin. Si `python3` no ejecuta nada (en Windows suele ser un alias de la
+  Microsoft Store), cambia `python3` por `py -3` o `python` en el archivo
+  copiado. Sin un intérprete que funcione esos hooks no se ejecutan y NN-08
+  no pregunta (el lanzador del plugin, en cambio, pide confirmación).
 - **Para correr los tests o regenerar el ZIP** (solo necesario si vas a
   modificar el agente, no para usarlo): Python 3.11+ con `pyyaml`
-  (`pip install pyyaml --break-system-packages`), y las utilidades de
+  (`pip install pyyaml --break-system-packages`), `git` y un checkout del
+  repositorio (el ZIP solo empaqueta archivos versionados), y las utilidades de
   sistema `zip`/`unzip`. Con Python 3.10, instala también `tomli` para no
   omitir la validación TOML.
 - **En Windows**: el plugin de Claude Code ejecuta sus hooks con **Git Bash**
@@ -133,6 +140,7 @@ senior-engineering-agent/
     ├── eval.sh                  evaluación automatizada con `claude plugin eval` (smoke|regression|capability|all)
     ├── ablate_core.sh           ablación del núcleo: sin core/02…05 sobre 11 casos (`completo|sin-02|sin-03|sin-04|sin-05`)
     ├── eval_report.py           informe de una corrida de eval.sh (WITH / W/OUT / Δ)
+    ├── eval_grants.py           herramientas que concede eval.sh; no invalida los casos strict-tools
     ├── eval_summary.py          resumen por caso de uno o varios result.json (excluye graders `arm: with-only`; sin coste de modelo)
     ├── check_version_guard.py   guarda de versión de la CI: si el plugin cambió desde la última etiqueta `v*`, plugin.json.version debe cambiar
     ├── check_results.py         resume tests/results/ y el estado de la puerta (benchmark manual de 1.0.0)
@@ -370,8 +378,14 @@ runtimes. La CI (`.github/workflows/structural-tests.yml`) ejecuta en cada
 push y pull request a `main`, en Linux y en Windows, la suite estructural, la
 aceptación práctica de hooks (`tests/acceptance/hooks_practice.sh`) y, en Linux,
 las comprobaciones `--check` de las vistas derivadas, sin secretos ni llamadas a modelos; el
-benchmark de comportamiento se automatiza con `scripts/eval.sh` (requiere una cuenta de Claude Code, por eso no corre en la CI; ver `tests/GUIA_BENCHMARK.md`). Este proyecto en sí no requiere
-variables de entorno propias.
+benchmark de comportamiento se automatiza con `scripts/eval.sh` (requiere una cuenta de Claude Code, por eso no corre en la CI; ver `tests/GUIA_BENCHMARK.md`). Este proyecto no necesita credenciales
+ni un archivo `.env` para las comprobaciones estructurales. Variables
+opcionales: `SEA_LANGUAGE` (idioma de los hooks fuera del plugin; ver
+«Idioma»), `EVAL_MAX_COST_USD` y `ABLATE_MAX_COST_USD` (tope de coste de
+`scripts/eval.sh` y `scripts/ablate_core.sh`; el argumento `--max-cost-usd`
+tiene prioridad), `DIST_DIR` y `SOURCE_DATE_EPOCH` (carpeta de salida y fecha
+fija de `scripts/build_zip.sh`). Las que aporta cada runtime
+(`CLAUDE_PROJECT_DIR`, `CLAUDE_PLUGIN_ROOT`…) no las defines tú.
 
 ## Autoría
 

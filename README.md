@@ -25,7 +25,11 @@ See `SPECIFICATION.md` (Spanish) for the full architecture and the evidence-base
 - **To use the agent** (load it in Claude Code, Codex, Cursor, Gemini CLI, ChatGPT Projects or Gemini Gems): nothing besides the runtime itself — it is plain text
   (Markdown/YAML/TOML) that the runtime consumes directly. The Claude Code **plugin** needs **Claude Code ≥ v2.1.271** (it declares `userConfig.options`; older versions cannot load it) and
   Python 3.8+ for the hooks.
-- **To run the tests or rebuild the ZIP** (only if you modify the agent): Python 3.11+ with `pyyaml` (`pip install pyyaml --break-system-packages`) and the system utilities `zip`/`unzip`.
+- **Hooks of the manual installation** (`adapters/*/settings.hooks.json`, `hooks.json`) call `python3` directly; they do **not** use the plugin's launcher.
+  If `python3` does not run (on Windows it is often a Microsoft Store alias), change `python3` to `py -3` or `python` in the copied file. Without a working
+  interpreter those hooks do not run at all, so NN-08 does not ask (the plugin's launcher, instead, asks: fail-closed).
+- **To run the tests or rebuild the ZIP** (only if you modify the agent): Python 3.11+ with `pyyaml` (`pip install pyyaml --break-system-packages`), `git` and a
+  checkout of the repository (the ZIP only packs versioned files), and the system utilities `zip`/`unzip`.
   With Python 3.10 also install `tomli` so the TOML validation is not skipped.
 - **On Windows**: the Claude Code plugin runs its hooks with **Git Bash** (`plugins/claude-code/senior-engineering-agent/scripts/sea-python.sh` is a bash script). The repository ships a
   `.gitattributes` (`* text=auto eol=lf`) that forces LF line endings even with `core.autocrlf=true`; without it the `.sh` files would get CRLF and fail with "$'\r': command not found".
@@ -266,6 +270,7 @@ senior-engineering-agent/
     ├── eval.sh                  automated evaluation with `claude plugin eval` (smoke|regression|capability|regression-en|all)
     ├── ablate_core.sh           core ablation: without core/02…05 over 11 cases (`completo|sin-02|sin-03|sin-04|sin-05`)
     ├── eval_report.py           report of an eval.sh run (WITH / W/OUT / Δ)
+    ├── eval_grants.py           tools eval.sh grants per run; refuses to invalidate strict-tools cases
     ├── eval_summary.py          per-case summary of one or more result.json (excludes `arm: with-only` graders; no model cost)
     ├── check_version_guard.py   CI version guard: if the plugin changed since the last `v*` tag, plugin.json.version must change
     ├── check_results.py         summarizes tests/results/ and the gate status (manual 1.0.0 benchmark)
