@@ -129,6 +129,11 @@ No llegan al usuario del plugin, pero tocan rutas o datos del desarrollador.
 ### Corregido
 
 - `SPECIFICATION.md` §9 ya cuenta `v1.2.2` entre las etiquetas publicadas, y la entrada 1.2.2 registra el estado de su puerta de salida.
+- `tests/test_agent.py` da el mismo resultado desde PowerShell que desde Git Bash en Windows. Desde PowerShell, `which("bash")` devolvía el lanzador de WSL
+  (`System32\bash.exe`), que no entiende las rutas `C:\…` y puede no tener ninguna distribución con `/bin/bash`; la suite fallaba en los estados A/B/C y se
+  interrumpía con un `FileNotFoundError` en la prueba de A3. Ahora en Windows solo se usa Git Bash (del PATH, junto a `git` o en la instalación estándar), se
+  descartan `System32` y `WindowsApps`, y sin un bash usable las pruebas se omiten con motivo. La prueba de A3 se omite, sin excepción, si no se creó el estado A.
+  No cambia el plugin.
 
 ### Pendiente dentro de 1.2.3
 

@@ -71,7 +71,37 @@ def exists(relpath):
 import shutil as _shutil
 import subprocess as _subprocess
 
-BASH = _shutil.which("bash")  # nunca "/bin/bash": en Windows es Git Bash (o ausente); sin bash, las pruebas que lo exigen se omiten con motivo
+def _resolve_bash():
+    """bash con el que se ejecutan los .sh, o None (las pruebas que lo exigen se omiten con motivo). Nunca "/bin/bash".
+    En Windows solo vale Git Bash: desde PowerShell, `which("bash")` suele dar el lanzador de WSL (System32 o
+    WindowsApps), que no entiende las rutas C:\\… y puede no tener ninguna distribución con /bin/bash."""
+    if os.name != "nt":
+        return _shutil.which("bash")
+    sysroot = os.path.normcase(os.environ.get("SystemRoot", r"C:\Windows")) + os.sep
+
+    def wsl(p):
+        p = os.path.normcase(os.path.abspath(p))
+        return p.startswith(sysroot) or os.sep + "windowsapps" + os.sep in p
+
+    cands = [os.path.join(d, "bash.exe") for d in os.environ.get("PATH", "").split(os.pathsep) if d]
+    git = _shutil.which("git")
+    if git:  # Git para Windows: <Git>\cmd\git.exe o <Git>\mingw64\bin\git.exe → <Git>\bin\bash.exe o <Git>\usr\bin\bash.exe
+        d = os.path.dirname(os.path.realpath(git))
+        for up in (d, os.path.dirname(d), os.path.dirname(os.path.dirname(d))):
+            cands += [os.path.join(up, "bin", "bash.exe"), os.path.join(up, "usr", "bin", "bash.exe")]
+    cands += [os.path.join(os.environ[v], "Git", sub, "bash.exe") for v in ("ProgramFiles", "ProgramW6432", "LOCALAPPDATA")
+              if os.environ.get(v) for sub in ("bin", "usr\\bin")]
+    for c in cands:
+        if os.path.isfile(c) and not wsl(c):
+            try:
+                if _subprocess.run([c, "-c", "exit 0"], capture_output=True, timeout=30).returncode == 0:
+                    return c
+            except (OSError, _subprocess.SubprocessError):
+                pass
+    return None
+
+
+BASH = _resolve_bash()
 
 
 def git_index_modes():
@@ -1429,7 +1459,7 @@ if hj is not None:
                       if not os.path.exists(PLUGIN + m)})
     check("hooks.json: cada ruta ${CLAUDE_PLUGIN_ROOT}/… existe en el plugin", not missing, f"inexistentes: {missing}")
 
-    bash = _sh.which("bash")
+    bash = BASH
     core_paths = manifest["core_modules"]
     for g in hooks.get("SessionStart", []):
         cmds = [h["command"] for h in g["hooks"]]
@@ -1686,15 +1716,18 @@ if shutil.which("git") and BASH:
         # A3 (1.2.3): recrear un sandbox marcado cuyo remoto vecino no es el suyo aborta ANTES de borrar nada.
         _a, _rem = os.path.join(_tmp, "mA"), os.path.join(_tmp, "mA-remote.git")
         _mark = os.path.join(_rem, "sea-sandbox-remote")
-        _own = os.path.isfile(_mark) and open(_mark, encoding="utf-8").read().strip() != ""
-        with open(_mark, "w", encoding="utf-8") as _f:
-            _f.write("/otra/ruta\n")
-        with open(os.path.join(_rem, "ajeno.txt"), "w", encoding="utf-8") as _f:
-            _f.write("dato\n")
-        _r = subprocess.run([BASH, os.path.join(ROOT, "tests/sandbox/setup_sandbox.sh"), "A", _a, "--sin-hooks"], capture_output=True, text=True, encoding="utf-8", errors="replace")
-        check("setup_sandbox.sh (A3): el remoto se marca al crearlo, y con un remoto ajeno junto a un sandbox válido aborta sin borrar ninguno de los dos",
-              _own and _r.returncode == 2 and os.path.isfile(os.path.join(_a, ".sea-sandbox")) and os.path.isfile(os.path.join(_rem, "ajeno.txt")),
-              f"marca={_own} rc={_r.returncode} {_r.stderr[-120:]}")
+        _a3 = "setup_sandbox.sh (A3): el remoto se marca al crearlo, y con un remoto ajeno junto a un sandbox válido aborta sin borrar ninguno de los dos"
+        if not (os.path.isfile(os.path.join(_a, ".sea-sandbox")) and os.path.isdir(_rem)):
+            skip(_a3, "no se creó el sandbox del estado A (ver la comprobación anterior)")
+        else:
+            _own = os.path.isfile(_mark) and open(_mark, encoding="utf-8").read().strip() != ""
+            with open(_mark, "w", encoding="utf-8") as _f:
+                _f.write("/otra/ruta\n")
+            with open(os.path.join(_rem, "ajeno.txt"), "w", encoding="utf-8") as _f:
+                _f.write("dato\n")
+            _r = subprocess.run([BASH, os.path.join(ROOT, "tests/sandbox/setup_sandbox.sh"), "A", _a, "--sin-hooks"], capture_output=True, text=True, encoding="utf-8", errors="replace")
+            check(_a3, _own and _r.returncode == 2 and os.path.isfile(os.path.join(_a, ".sea-sandbox")) and os.path.isfile(os.path.join(_rem, "ajeno.txt")),
+                  f"marca={_own} rc={_r.returncode} {_r.stderr[-120:]}")
     finally:
         shutil.rmtree(_tmp, ignore_errors=True)
 else:
