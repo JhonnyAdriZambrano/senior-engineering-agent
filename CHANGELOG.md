@@ -45,6 +45,27 @@ ahora; la etiqueta `v1.2.3` la crea el propietario al cumplir la *Puerta de sali
 - Falso positivo **conservado a propósito y documentado**: el texto entre comillas también se analiza (`echo "git reset --hard"` pide confirmación), porque
   `bash -c`, `eval` o `Invoke-Expression` sí lo ejecutan.
 
+### Corregido (Stop, hallazgo M1)
+
+- Solo cuenta como validación un comando **posterior a la última edición** del turno (o el mismo comando que edita, `sed -i … && pytest`); un `pytest` anterior a
+  la última edición ya no basta.
+- La ejecución de un archivo editado se compara por **ruta canónica** (las relativas, desde la raíz del proyecto), no por nombre de base: `python tests/a.py` ya no
+  valida una edición de `src/a.py`.
+- `--check` solo cuenta con un intérprete que ejecuta un script o con una herramienta conocida (black, ruff, prettier, cargo, terraform, npm/yarn/pnpm, make, tox…):
+  `echo --check`, `git status --check` y `git diff --check` ya no cuentan.
+- Límites que siguen documentados en `sea_hooks.py`: no se mira el resultado del comando (código de salida, `is_error`) y dentro de un mismo comando no se
+  distingue el orden entre edición y validación.
+
+### Corregido (plugin: referencias y promesas, hallazgos M2 y M3)
+
+- **M2 — referencias del plugin.** El núcleo y las Skills citan `capabilities.yaml`, `manifest.yaml`, `modules/…` y `SPECIFICATION.md`, que el plugin no
+  distribuía. Ahora el plugin los incluye (copias generadas), un hook `SessionStart` más indica la carpeta del plugin («[SEA] Rutas citadas…») y la nota de rutas
+  de las Skills del plugin remite a esa línea en vez de a una carpeta `senior-engineering-agent/` en el proyecto. El texto de `core/` no cambia. **Cambia lo que
+  llega al modelo** (una línea en el inicio de sesión y la nota de las Skills): la puerta exige la regresión con modelo.
+- **M3 — «subagentes de solo lectura».** En Claude Code es una instrucción, no un confinamiento: el revisor conserva `Bash` para `git diff`/`git log`. README,
+  README del plugin, `marketplace.json` y `SPECIFICATION.md` hablan ahora de subagentes «sin herramientas de escritura» y lo aclaran; en Codex sí lo impone
+  `sandbox_mode = "read-only"`. Las definiciones de los agentes no cambian.
+
 ### Corregido (herramientas de desarrollo: A2, A3, A4)
 
 No llegan al usuario del plugin, pero tocan rutas o datos del desarrollador.
@@ -70,6 +91,9 @@ No llegan al usuario del plugin, pero tocan rutas o datos del desarrollador.
 - Corpus adversarial de NN-08 en `tests/test_agent.py`: 30 variantes que deben pedir confirmación, 23 negativos que no deben intervenir, variantes normalizadas y
   entradas sin comando de texto en los cuatro runtimes, y el lanzador sin intérprete en pre-tool (shell POSIX; en Windows se comprobó a mano con Git Bash).
   La identidad byte a byte con 1.1.2 en modo «es» se mantiene para las entradas de siempre.
+- Stop (M1): `--check` por programa, orden edición/validación (antes, después, entre dos ediciones, mismo comando) y homónimo en otro directorio.
+- Plugin (M2): cierre de referencias del contenido que llega al modelo, nota de rutas de las Skills y hook de rutas en `startup`, `clear` y `compact`.
+- `README.md` y `README.es.md` listan `AGENTS.md` y `CLAUDE.md` en el árbol (la prueba del árbol fallaba desde que se versionaron).
 - Reproducciones de A2 (destino de trazas, objetivos de limpieza y un `result.json` manipulado), A3 (sandbox válido con remoto ajeno) y A4 (repositorio sintético con
   archivos sensibles sin versionar; necesita `zip`, se omite en Windows sin él y se comprobó a mano con un `zip` sustituto).
 
@@ -84,8 +108,7 @@ No llegan al usuario del plugin, pero tocan rutas o datos del desarrollador.
 
 ### Pendiente dentro de 1.2.3
 
-Stop (M1: validación posterior a la última edición, rutas canónicas), referencias del plugin (M2), revisor con `Bash` (M3), herramientas de desarrollo
-(resto de M4, M6, M7) y documentación (M9, B1, B2).
+Herramientas de desarrollo (resto de M4, M6, M7) y documentación (M9, B1, B2).
 
 ### Puerta de salida hacia 1.2.3
 

@@ -61,6 +61,8 @@ senior-engineering-agent/
 ├── PRIVACY.md                   política de privacidad (enlazada desde plugin.json)
 ├── SECURITY.md                  qué es una vulnerabilidad y cómo reportarla en privado (inglés)
 ├── CONTRIBUTING.md              cómo contribuir: fuente única frente a vistas generadas (inglés)
+├── AGENTS.md                    instrucciones para agentes que desarrollan ESTE repositorio (no es el adaptador)
+├── CLAUDE.md                    puntero de Claude Code a AGENTS.md (no es el adaptador)
 ├── manifest.yaml                identidad, versión, índice de módulos
 ├── capabilities.yaml            capacidades abstractas → binding por runtime
 ├── .gitattributes               fin de línea LF (portabilidad en Windows)
@@ -80,7 +82,7 @@ senior-engineering-agent/
 │   ├── hooks/
 │   │   ├── sea_hooks.py         lógica común de los hooks (Claude Code, Codex, Cursor, Gemini CLI)
 │   │   └── i18n.json            idiomas, rol en inglés y etiquetas es→en (GENERADO desde manifest.yaml > i18n)
-│   ├── claude-code/             CLAUDE.md + agents/ (2 Subagents de solo lectura)
+│   ├── claude-code/             CLAUDE.md + agents/ (2 Subagents sin herramientas de escritura)
 │   │                            + settings.hooks.json (hooks SessionStart, PreToolUse y Stop)
 │   ├── codex/                   AGENTS.md + hooks.json + agents/ (3 Subagents de solo lectura;
 │   │                            el explorador, sin medir)
@@ -161,7 +163,7 @@ marketplace (`.claude-plugin/marketplace.json`). Dentro de Claude Code:
 
 (En Claude Code 2.1.275 o posterior también sirve, en un solo paso:
 `/plugin install senior-engineering-agent --marketplace JhonnyAdriZambrano/senior-engineering-agent`.)
-El plugin trae las 7 Skills, los 2 Subagents de solo lectura, el núcleo
+El plugin trae las 7 Skills, los 2 Subagents sin herramientas de escritura (de solo lectura por instrucción: el revisor conserva `Bash` para `git diff`/`git log`), el núcleo
 (inyectado al iniciar la sesión por un hook `SessionStart` por cada archivo de
 `core/`) y los hooks deterministas (`SessionStart`, `PreToolUse` y `Stop`); no hace
 falta tocar `CLAUDE.md` ni copiar nada. Es una **vista generada** (`plugins/claude-code/senior-engineering-agent/`,
@@ -204,7 +206,7 @@ proyecto).
    proyecto (`.claude/skills/<nombre>/SKILL.md`) para que Claude Code las
    cargue solo cuando la tarea lo amerite.
 4. Opcional: copia `adapters/claude-code/agents/*.md` a `.claude/agents/`
-   para habilitar los 2 Subagents de solo lectura (revisor e investigación
+   para habilitar los 2 Subagents sin herramientas de escritura (revisor e investigación
    de bootstrap; el explorador se retiró: no se midió un beneficio frente al modelo solo).
 5. Recomendado: copia `adapters/claude-code/settings.hooks.json` a
    `.claude/settings.json` (o fusiónalo) para activar los hooks

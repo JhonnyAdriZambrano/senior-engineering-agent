@@ -226,9 +226,11 @@ Claude Code (`.claude/skills/`) y a Codex, Cursor y Gemini CLI
 (ChatGPT Projects, Gemini Gems), el módulo se sube como archivo adjunto.
 
 **Subagents (complemento, solo lectura).** Claude Code incluye dos subagents
-sin permisos de escritura: `code-reviewer-agent` (revisión independiente, modo
+sin herramientas de escritura: `code-reviewer-agent` (revisión independiente, modo
 REVIEW) y `project-bootstrap-research-agent` (comparación de opciones con
-fuentes). Codex incluye además `repository-explorer-agent` (INSPECCIONAR/
+fuentes). En Claude Code la lectura exclusiva es una **instrucción**, no un
+confinamiento: el revisor conserva `Bash` para `git diff`/`git log`, y una shell
+puede escribir; en Codex sí la impone `sandbox_mode = "read-only"`. Codex incluye además `repository-explorer-agent` (INSPECCIONAR/
 COMPRENDER y propuesta de plan), marcado **sin medir**; se
 retiró de Claude Code (no se midió un beneficio frente al modelo solo), el único runtime con evaluación automatizada. Implementar, ejecutar tests y decidir
 quedan en el hilo principal: un subagent no puede usar la interacción

@@ -3,11 +3,11 @@
 > Senior Software Engineer and Senior Information Technology Architect for Claude Code. Version 1.2.3.
 
 **What it is.** A Claude Code plugin that loads a senior-engineering core (identity, non-negotiable rules, certainty
-labels, task workflows) at session start, plus 7 Skills, 2 read-only subagents and deterministic hooks. It works on
+labels, task workflows) at session start, plus 7 Skills, 2 subagents without write tools and deterministic hooks. It works on
 real repositories with evidence, security, minimal change and explicit epistemic honesty.
 
 **Qué es (español).** Plugin de Claude Code que carga al iniciar la sesión un núcleo de ingeniería senior (identidad,
-reglas no negociables, etiquetas de certeza y workflows), con 7 Skills, 2 subagentes de solo lectura y hooks
+reglas no negociables, etiquetas de certeza y workflows), con 7 Skills, 2 subagentes sin herramientas de escritura y hooks
 deterministas. El núcleo normativo está en español; el selector de idioma permite respuestas en inglés.
 
 ## Install

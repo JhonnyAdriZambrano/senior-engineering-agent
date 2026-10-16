@@ -31,6 +31,10 @@
           },
           {
             "type": "command",
+            "command": "printf '%s %s\\n' '[SEA] Rutas citadas por el núcleo y las Skills (core/, modules/, capabilities.yaml, manifest.yaml, SPECIFICATION.md): relativas a la carpeta del plugin:' \"${CLAUDE_PLUGIN_ROOT}\""
+          },
+          {
+            "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/scripts/sea-python.sh \"${CLAUDE_PLUGIN_ROOT}\"/adapters/hooks/sea_hooks.py session-start --runtime claude-code"
           }
         ]
@@ -64,6 +68,10 @@
           },
           {
             "type": "command",
+            "command": "printf '%s %s\\n' '[SEA] Rutas citadas por el núcleo y las Skills (core/, modules/, capabilities.yaml, manifest.yaml, SPECIFICATION.md): relativas a la carpeta del plugin:' \"${CLAUDE_PLUGIN_ROOT}\""
+          },
+          {
+            "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/scripts/sea-python.sh \"${CLAUDE_PLUGIN_ROOT}\"/adapters/hooks/sea_hooks.py session-start --runtime claude-code"
           }
         ]
@@ -94,6 +102,10 @@
           {
             "type": "command",
             "command": "printf '%s\\n' '[Núcleo SEA — parte 6 de 6 (orden canónico 00→05): core/05-final-priorities.md]' && cat \"${CLAUDE_PLUGIN_ROOT}\"/core/05-final-priorities.md"
+          },
+          {
+            "type": "command",
+            "command": "printf '%s %s\\n' '[SEA] Rutas citadas por el núcleo y las Skills (core/, modules/, capabilities.yaml, manifest.yaml, SPECIFICATION.md): relativas a la carpeta del plugin:' \"${CLAUDE_PLUGIN_ROOT}\""
           },
           {
             "type": "command",

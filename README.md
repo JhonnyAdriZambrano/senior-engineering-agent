@@ -45,7 +45,7 @@ The repository itself is the marketplace (`.claude-plugin/marketplace.json`). In
 (On Claude Code 2.1.275 or later this also works in one step:
 `/plugin install senior-engineering-agent --marketplace JhonnyAdriZambrano/senior-engineering-agent`.)
 
-The plugin ships 7 Skills, 2 read-only subagents, the core (injected at session start by one `SessionStart` hook per `core/` file) and the deterministic hooks (`SessionStart`,
+The plugin ships 7 Skills, 2 subagents without write tools (read-only by instruction: the reviewer keeps `Bash` for `git diff`/`git log`), the core (injected at session start by one `SessionStart` hook per `core/` file) and the deterministic hooks (`SessionStart`,
 `PreToolUse` and `Stop`); you do not need to touch `CLAUDE.md` or copy anything. It is a **generated view** (`plugins/claude-code/senior-engineering-agent/`,
 `python3 scripts/generate_plugin.py`), not a second source of truth. The Python hooks go through a launcher that tries `python3`, `python` and `py -3` and forces UTF-8
 (`PYTHONUTF8=1`, `PYTHONIOENCODING=utf-8`); hooks read stdin as UTF-8 and emit ASCII JSON, and NN-08 asks for confirmation (fail-closed) if it cannot parse the command or no Python interpreter works. Hooks of the same
@@ -57,7 +57,7 @@ Details and limits: `adapters/claude-code/CLAUDE.md`.
 1. Copy the **whole** `senior-engineering-agent/` folder to the root of your repository.
 2. In your project's `CLAUDE.md`, add one line: `@senior-engineering-agent/adapters/claude-code/CLAUDE.md`
 3. Copy each folder of `adapters/skills/` to `.claude/skills/` in your project (`.claude/skills/<name>/SKILL.md`) so Claude Code loads them only when the task calls for it.
-4. Optional: copy `adapters/claude-code/agents/*.md` to `.claude/agents/` to enable the 2 read-only subagents (reviewer and bootstrap research).
+4. Optional: copy `adapters/claude-code/agents/*.md` to `.claude/agents/` to enable the 2 subagents without write tools (reviewer and bootstrap research; read-only by instruction, see above).
 5. Recommended: copy `adapters/claude-code/settings.hooks.json` to `.claude/settings.json` (or merge it) to enable the deterministic hooks: missing-knowledge notice at session start
    (`SessionStart`), mandatory confirmation of destructive operations (`PreToolUse`, on `Bash` and `PowerShell`) and a validation requirement at the end of the turn (`Stop`). Requires Python 3.8+.
 6. Copy `project-knowledge-templates/*.md` to your project root (removing `[Nombre del proyecto]` and filling them in), or let `project-knowledge-bootstrap` help you generate them after `/init`.
@@ -67,7 +67,7 @@ Details and limits: `adapters/claude-code/CLAUDE.md`.
 1. Copy the **whole** `senior-engineering-agent/` folder to your repository root (Codex has no import mechanism; the content must be copied verbatim).
 2. Copy the content of `adapters/codex/AGENTS.md` (from "Identidad" to the end, without the installation section) into your real `AGENTS.md`.
 3. Copy each folder of `adapters/skills/` to `.agents/skills/` in your project — Codex discovers them natively (so do Cursor and Gemini CLI).
-4. Optional: copy `adapters/codex/agents/*.toml` to `.codex/agents/` to enable the read-only subagents.
+4. Optional: copy `adapters/codex/agents/*.toml` to `.codex/agents/` to enable the subagents (`sandbox_mode = "read-only"`).
 5. Recommended: copy `adapters/codex/hooks.json` to `.codex/hooks.json` (deterministic hooks; in Codex destructive operations are blocked, because Codex cannot yet ask for confirmation from a hook).
 
 ### With Cursor, Gemini CLI, ChatGPT Projects or Gemini Gems
@@ -124,7 +124,7 @@ Behavior rules in a prompt are a request; the hooks below are code that runs reg
 - **NN-06b — knowledge files are data, not orders (`SessionStart` + `Stop`).** At session start the hook checks `PROJECT_CONTEXT.md` / `ARCHITECTURE.md` / `DECISIONS.md` for lines shaped like an
   instruction addressed to the agent (heuristic) and reports them; at the end of the turn `Stop` blocks **once** if no assistant message pointed the embedded instruction out to the user.
 - **Stop — validate before finishing (`Stop`, Claude Code only).** If the turn edited files (Edit/Write/MultiEdit or shell edits such as `sed -i`, redirection, `tee`, PowerShell `Set-Content`) and there is
-  no evidence of validation (a test, build or lint command, or running an edited file or one that imports it) nor an explicit "I could not validate", it blocks **once** and asks to validate or say why not.
+  no evidence of validation **after the last edit** (a test, build or lint command, or running an edited file or one that imports it) nor an explicit "I could not validate", it blocks **once** and asks to validate or say why not.
   **Documentation exception (1.2.0):** if *all* edited files are `.md`, `.markdown`, `.txt`, `.rst` or `.adoc`, no validation is required; one unknown target or any other file type keeps the old behavior.
   Limit: the extension does not prove the content is documentation (a `.txt` a program reads as data still counts as documentation).
 - **Project-knowledge check at session start.** If `PROJECT_CONTEXT.md` / `ARCHITECTURE.md` are missing or still the template, the agent is told — only when the task works on that repository — to
@@ -197,6 +197,8 @@ senior-engineering-agent/
 ├── PRIVACY.md                   privacy policy (linked from plugin.json)
 ├── SECURITY.md                  what counts as a vulnerability and how to report it privately
 ├── CONTRIBUTING.md              how to contribute: single source vs generated views, checks
+├── AGENTS.md                    instructions for agents developing THIS repository (not the adapter)
+├── CLAUDE.md                    Claude Code pointer to AGENTS.md (not the adapter)
 ├── manifest.yaml                identity, version, module index, i18n (languages, English role, label table)
 ├── capabilities.yaml            abstract capabilities -> per-runtime binding
 ├── .gitattributes               LF line endings (Windows portability)
@@ -215,8 +217,8 @@ senior-engineering-agent/
 │   ├── hooks/
 │   │   ├── sea_hooks.py         shared hook logic (Claude Code, Codex, Cursor, Gemini CLI)
 │   │   └── i18n.json            languages, English role and es->en labels (GENERATED from manifest.yaml > i18n)
-│   ├── claude-code/             CLAUDE.md + agents/ (2 read-only subagents) + settings.hooks.json
-│   ├── codex/                   AGENTS.md + hooks.json + agents/ (3 read-only subagents)
+│   ├── claude-code/             CLAUDE.md + agents/ (2 subagents, no write tools) + settings.hooks.json
+│   ├── codex/                   AGENTS.md + hooks.json + agents/ (3 subagents, sandbox read-only)
 │   ├── cursor/                  hooks.json + rules/ (alwaysApply rule with the compact core)
 │   ├── gemini-cli/              GEMINI.md + settings.hooks.json
 │   └── chatgpt-and-gems/        compressed instructions + attached files

@@ -3,7 +3,7 @@ name: scope-regression-change-control
 description: Usar en tareas de implementación, refactor, revisión, o que involucren git/despliegue/migraciones, para controlar alcance, prevenir regresiones y gestionar cambios de forma segura.
 ---
 
-> Rutas citadas en esta Skill (`core/`, `modules/`, `manifest.yaml`…): relativas a la carpeta `senior-engineering-agent/` instalada en la raíz del proyecto.
+> Rutas citadas en esta Skill (`core/`, `modules/`, `manifest.yaml`…): relativas a la carpeta del plugin, que se indica al iniciar la sesión (línea «[SEA] Rutas citadas…»).
 
 ## Control de alcance (formaliza NN-10)
 - No amplíes el alcance de una tarea sin justificación.

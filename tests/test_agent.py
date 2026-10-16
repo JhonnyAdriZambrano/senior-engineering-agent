@@ -1132,6 +1132,19 @@ for cmd in ("python -m pytest -q", "python3 -m unittest discover", "uv run pytes
     rc, out = run_stop([_user("x"), _tu("Edit", file_path="a.py"), _tr(), _bash(cmd), _tr(), _say("ok")])
     check(f"Stop: validación en posición de comando ({cmd}) -> allow", rc == 0 and out is None, str(out))
 
+# M1 (1.2.3): --check solo con programas que validan; la validación debe ser posterior a la última edición
+for cmd, want_block in (("echo --check", True), ("git status --check", True), ("git diff --check", True), ("black --check .", False),
+                        ("ruff format --check", False), ("npm run lint -- --check", False), ("py -3 scripts/generate_plugin.py --check", False)):
+    rc, out = run_stop([_user("x"), _tu("Edit", file_path="a.py"), _tr(), _bash(cmd), _tr(), _say("ok")])
+    check(f"Stop (M1): `{cmd}` tras editar -> {'block' if want_block else 'allow'}", rc == 0 and bool(out and out["decision"] == "block") == want_block, str(out))
+for label, seq, want_block in (
+        ("pytest ANTES de la única edición", [_bash("pytest -q"), _tr(), _tu("Edit", file_path="a.py"), _tr()], True),
+        ("Edit, pytest y otra Edit sin validar", [_tu("Edit", file_path="a.py"), _tr(), _bash("pytest -q"), _tr(), _tu("Edit", file_path="b.py"), _tr()], True),
+        ("Edit, Edit y pytest al final", [_tu("Edit", file_path="a.py"), _tr(), _tu("Edit", file_path="b.py"), _tr(), _bash("pytest -q"), _tr()], False),
+        ("edición y validación en el mismo comando", [_bash("sed -i 's/a/b/' a.py && pytest -q"), _tr()], False)):
+    rc, out = run_stop([_user("x")] + seq + [_say("ok")])
+    check(f"Stop (M1): {label} -> {'block' if want_block else 'allow'}", rc == 0 and bool(out and out["decision"] == "block") == want_block, str(out))
+
 # ejecución de un archivo editado o de su punto de entrada = validación
 with tempfile.TemporaryDirectory() as proj:
     os.makedirs(os.path.join(proj, "app"))
@@ -1153,6 +1166,8 @@ with tempfile.TemporaryDirectory() as proj:
     _exec_case("módulo ejecutado con -m", "app/calc.py", "python -m app.calc", False)
     _exec_case("script con ./", "main.py", "./main.py", False)
     _exec_case("archivo que no está relacionado con lo editado", "app/calc.py", "python otro.py", True)
+    _exec_case("homónimo en otro directorio (M1: ya no basta el nombre de base)", "app/main.py", "python main.py", True)
+    _exec_case("el mismo archivo con ruta absoluta en el comando", "app/calc.py", "python " + os.path.join(proj, "app", "calc.py").replace("\\", "/"), False)
     _exec_case("`python -c` no cuenta", "app/calc.py", "python -c 'print(1)'", True)
     _exec_case("un cat del archivo no es ejecutarlo", "main.py", "cat main.py", True)
     rc, out = run_stop([_user("x"), _bash("echo 'print(3)' > otro.py"), _tr(), _bash("python otro.py"), _tr(), _say("ok")], env=ENV)
@@ -1419,9 +1434,14 @@ if hj is not None:
     for g in hooks.get("SessionStart", []):
         cmds = [h["command"] for h in g["hooks"]]
         core_cmds, rest = cmds[:len(core_paths)], cmds[len(core_paths):]
-        check(f"SessionStart/{g.get('matcher')}: un hook por archivo de core/ (en el orden de manifest.yaml) + session-start de sea_hooks.py",
+        check(f"SessionStart/{g.get('matcher')}: un hook por archivo de core/ (en el orden de manifest.yaml) + la raíz del plugin (M2) + session-start de sea_hooks.py",
               all(f'cat "${{CLAUDE_PLUGIN_ROOT}}"/{p}' in c for c, p in zip(core_cmds, core_paths))
-              and len(rest) == 1 and "sea-python.sh" in rest[0] and "session-start" in rest[0], "composición inesperada")
+              and len(rest) == 2 and "[SEA] Rutas citadas" in rest[0] and rest[0].endswith('"${CLAUDE_PLUGIN_ROOT}"')
+              and "sea-python.sh" in rest[1] and "session-start" in rest[1], "composición inesperada")
+        if bash:
+            _pr = subprocess.run([bash, "-c", rest[0]], capture_output=True, env={**os.environ, "CLAUDE_PLUGIN_ROOT": PLUGIN})
+            check(f"SessionStart/{g.get('matcher')}: el hook de rutas (M2) imprime la raíz del plugin y sale con 0",
+                  _pr.returncode == 0 and _pr.stdout.decode("utf-8").rstrip("\n").endswith(PLUGIN), repr(_pr.stdout[-120:]))
         if not bash:
             skip(f"SessionStart/{g.get('matcher')}: ejecución de los hooks del núcleo", "bash no disponible")
             continue
@@ -1432,6 +1452,17 @@ if hj is not None:
             check(f"SessionStart/{g.get('matcher')} parte {n}: sale con 0, cabecera correcta, contenido íntegro y < {HOOK_OUTPUT_LIMIT} caracteres",
                   run.returncode == 0 and out.split("\n", 1)[0] == header and out == header + "\n" + read(p)
                   and len(out) < HOOK_OUTPUT_LIMIT, f"rc={run.returncode}, {len(out)} caracteres, primera línea={out.splitlines()[:1]}")
+
+# M2 (1.2.3): toda ruta del paquete que cite el contenido del plugin (núcleo, Skills, agentes, plantillas) existe dentro del plugin
+_ref_re = re.compile(r"(?<![\w/.-])((?:core|modules)/[\w.-]+\.md|capabilities\.yaml|manifest\.yaml|SPECIFICATION\.md)")
+_dangling = sorted({f"{os.path.relpath(f, PLUGIN)}: {m}" for f in glob.glob(os.path.join(PLUGIN, "**", "*.md"), recursive=True)
+                    if os.sep + "evals" + os.sep not in f and os.path.basename(f) not in ("README.md", "SPECIFICATION.md")  # documentación de referencia, cita el repositorio
+                    for m in _ref_re.findall(open(f, encoding="utf-8").read()) if not os.path.exists(os.path.join(PLUGIN, m))})
+check("Plugin (M2): las rutas del paquete que citan el núcleo, las Skills, los agentes y las plantillas existen dentro del plugin", not _dangling, "; ".join(_dangling[:5]))
+_skills_plugin = glob.glob(os.path.join(PLUGIN, "skills", "*", "SKILL.md"))
+check("Plugin (M2): la nota de rutas de las Skills remite a la carpeta del plugin, no a `senior-engineering-agent/` en el proyecto",
+      _skills_plugin and all("relativas a la carpeta del plugin" in open(f, encoding="utf-8").read()
+                             and "instalada en la raíz" not in open(f, encoding="utf-8").read() for f in _skills_plugin), "nota de rutas del modo manual")
 
 # Lanzador de Python: elige un intérprete que de verdad ejecuta y NUNCA pierde la salida 0
 LAUNCHER = os.path.join(PLUGIN, "scripts", "sea-python.sh")

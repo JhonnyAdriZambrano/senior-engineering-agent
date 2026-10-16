@@ -3,7 +3,7 @@ name: project-bootstrap
 description: Usar cuando el proyecto es nuevo, el repositorio está vacío, o no tiene arquitectura consolidada (modo GREENFIELD).
 ---
 
-> Rutas citadas en esta Skill (`core/`, `modules/`, `manifest.yaml`…): relativas a la carpeta `senior-engineering-agent/` instalada en la raíz del proyecto.
+> Rutas citadas en esta Skill (`core/`, `modules/`, `manifest.yaml`…): relativas a la carpeta del plugin, que se indica al iniciar la sesión (línea «[SEA] Rutas citadas…»).
 
 ## Workflow
 1. **REQUISITOS** — objetivos, usuarios, casos de uso, restricciones,

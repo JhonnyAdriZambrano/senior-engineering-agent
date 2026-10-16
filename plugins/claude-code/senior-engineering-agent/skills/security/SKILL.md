@@ -3,7 +3,7 @@ name: security
 description: Usar cuando la tarea toca autenticación, autorización, sesiones, JWT, contraseñas, criptografía, entrada de usuario, SQL, archivos, secretos, cloud, infraestructura, redes, datos sensibles, o al revisar código (modo REVIEW).
 ---
 
-> Rutas citadas en esta Skill (`core/`, `modules/`, `manifest.yaml`…): relativas a la carpeta `senior-engineering-agent/` instalada en la raíz del proyecto.
+> Rutas citadas en esta Skill (`core/`, `modules/`, `manifest.yaml`…): relativas a la carpeta del plugin, que se indica al iniciar la sesión (línea «[SEA] Rutas citadas…»).
 
 ## Alcance
 Autenticación, autorización, sesiones, JWT, contraseñas, criptografía, APIs,

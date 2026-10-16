@@ -494,8 +494,9 @@ EDIT_TOOLS = {"Edit", "Write", "MultiEdit"}
 # --- Validación por herramienta (criterio exacto): un segmento del comando (separado por ; & | o salto de línea) cuyo
 # PROGRAMA, tras quitar envoltorios (env, time, sudo, uv/poetry/pipenv run, npx, pnpm exec, python -m …), es una
 # herramienta de test, build o lint; no basta con nombrarla como argumento (`cat pytest.ini`, `pip install pytest`
-# no cuentan). Además cuenta un intérprete que ejecuta un script de pruebas (test_*.py, *_test.py, run_tests.sh) y
-# cualquier segmento con la opción `--check`.
+# no cuentan). Además cuenta un intérprete que ejecuta un script de pruebas (test_*.py, *_test.py, run_tests.sh) y un
+# segmento con la opción `--check` cuyo programa es un intérprete (un script con --check) o una herramienta de
+# _CHECK_PROGRAMS (1.2.3, auditoría M1: `echo --check` o `git status --check` ya no cuentan).
 VALIDATION_PROGRAM = re.compile(
     r"(?:pytest|unittest|jest|vitest|mocha|tox|nox|rspec|phpunit|tsc|eslint|ruff|flake8|pylint|mypy|pyright|shellcheck"
     r"|cargo\s+(?:test|build|check|clippy)|go\s+(?:test|build|vet)"
@@ -507,6 +508,9 @@ _TEST_SCRIPT = re.compile(r"^(?:test_\w+\.py|\w+_test\.py|run_tests\.sh)$")
 _WRAPPERS = {"env", "time", "sudo", "exec", "command", "nohup", "npx", "bunx", "xvfb-run"}
 _RUNNERS = {("uv", "run"), ("poetry", "run"), ("pipenv", "run"), ("pnpm", "exec"), ("yarn", "exec"), ("bundle", "exec"), ("hatch", "run")}
 _SCRIPT_INTERPRETER = re.compile(r"^(?:python[\d.]*|py|node|bash|sh|ruby|php|perl)$")
+_CHECK_PROGRAMS = {"black", "isort", "ruff", "prettier", "cargo", "terraform", "tofu", "rustfmt", "gofmt", "clang-format", "shfmt", "stylua",
+                   "deno", "biome", "dprint", "pre-commit", "mix", "dotnet", "npm", "yarn", "pnpm", "bun", "make", "nox", "tox", "sqlfluff"}
+_CHECK_OPT = re.compile(r"\s--check(?:=|\s|$)")
 
 
 def _command_tokens(seg):
@@ -531,12 +535,12 @@ def _command_tokens(seg):
 
 def is_validation_command(command):
     for seg in re.split(r"[;&|\n]+", str(command)):
-        if re.search(r"\s--check\b", seg):
-            return True
         toks = _command_tokens(seg)
         if not toks:
             continue
-        head = os.path.basename(toks[0])
+        head = re.sub(r"\.exe$", "", os.path.basename(toks[0]), flags=re.I)
+        if _CHECK_OPT.search(seg) and (head in _CHECK_PROGRAMS or _SCRIPT_INTERPRETER.match(head)):
+            return True
         if _SCRIPT_INTERPRETER.match(head):
             args = toks[1:]
             if len(args) >= 2 and args[0] == "-m":  # python -m pytest, python -m unittest …
@@ -638,7 +642,8 @@ def _ps_target(args):
 # --- Validación por ejecución (criterio exacto): un segmento del comando (separado por ; & | o salto de línea)
 # invoca un intérprete (python*, py, node, deno, bun, tsx, ts-node, ruby, php, perl, bash, sh) o un script por
 # ruta (./x, dir/x) con un archivo F como primer argumento no-opción (o `-m paquete.modulo`), y
-#   (a) F es un archivo editado en el turno (misma ruta o mismo nombre de base), o
+#   (a) F es un archivo editado en el turno: misma ruta canónica, con las rutas relativas resueltas desde la raíz del
+#       proyecto (1.2.3, auditoría M1: ya no basta el mismo nombre de base; `python tests/a.py` no valida `src/a.py`), o
 #   (b) F existe en disco y alcanza un archivo editado por sus importaciones (Python: import/from … import;
 #       JS: require/import de rutas relativas), de forma transitiva hasta profundidad 3 (p. ej. `python main.py`
 #       tras editar app/calc.py, que main.py importa).
@@ -687,9 +692,13 @@ def _norm(path):
     return p[2:] if p.startswith("./") else p
 
 
-def _same_file(a, b):
-    na, nb = _norm(a), _norm(b)
-    return na == nb or na.endswith("/" + nb) or nb.endswith("/" + na) or os.path.basename(na) == os.path.basename(nb)
+def _canon(path, root):
+    p = str(path).strip()
+    return os.path.normcase(os.path.normpath(p if os.path.isabs(p) else os.path.join(root, p)))
+
+
+def _same_file(a, b, root):
+    return bool(str(a).strip()) and bool(str(b).strip()) and _canon(a, root) == _canon(b, root)
 
 
 def _imports_of(path, root):
@@ -721,14 +730,14 @@ def _imports_of(path, root):
 def runs_edited_code(command, edited, root):
     """True si el comando ejecuta un archivo editado o uno que lo alcanza por importaciones (profundidad ≤ 3)."""
     for f in executed_files(command):
-        if any(_same_file(f, e) for e in edited):
+        if any(_same_file(f, e, root) for e in edited):
             return True
         seen, frontier = {_norm(f)}, [_norm(f)]
         for _ in range(3):
             nxt = []
             for cur in frontier:
                 for imp in _imports_of(cur, root):
-                    if any(_same_file(imp, e) for e in edited):
+                    if any(_same_file(imp, e, root) for e in edited):
                         return True
                     if _norm(imp) not in seen:
                         seen.add(_norm(imp))
@@ -764,7 +773,10 @@ def turn_evidence(entries, root=None):
 
 def turn_scan(entries, root=None):
     """Devuelve (hubo_edicion, hubo_validacion, texto_del_asistente, destinos) del último turno; `destinos` incluye '?' y rutas
-    vacías (destino desconocido) para que is_docs_only() no los dé por documentación."""
+    vacías (destino desconocido) para que is_docs_only() no los dé por documentación.
+    Orden (1.2.3, auditoría M1): solo cuenta una validación posterior a la última edición o en el mismo comando que la hace
+    (`sed -i … && pytest`); un `pytest` anterior a la última edición ya no basta. Límites: el resultado del comando (salida,
+    código, is_error) no se mira, y dentro de un mismo comando no se distingue `pytest; sed -i …` de `sed -i …; pytest`."""
     root = root or os.getcwd()
     start = 0
     for i, e in enumerate(entries):  # el turno empieza en el último mensaje real del usuario
@@ -774,6 +786,7 @@ def turn_scan(entries, root=None):
                 start = i
     edited_files, commands, texts, targets_all = [], [], [], []
     edited = False
+    order, last_edit = 0, -1
     for e in entries[start + 1:]:
         if e.get("type") != "assistant":
             continue
@@ -781,21 +794,22 @@ def turn_scan(entries, root=None):
             if b.get("type") == "text":
                 texts.append(str(b.get("text", "")))
             elif b.get("type") == "tool_use":
+                order += 1
                 inp = b.get("input") or {}
                 if b.get("name") in EDIT_TOOLS:
-                    edited = True
+                    edited, last_edit = True, order
                     edited_files.append(str(inp.get("file_path", "")))
                     targets_all.append(str(inp.get("file_path", "")) or "?")
                 elif b.get("name") in SHELL_TOOLS:
                     cmd = str(inp.get("command", ""))
-                    commands.append(cmd)
+                    commands.append((order, cmd))
                     targets = bash_edit_targets(cmd)
                     if targets:
-                        edited = True
+                        edited, last_edit = True, order
                         edited_files += [t for t in targets if t != "?"]
                         targets_all += targets
     edited_files = [f for f in edited_files if f]
-    validated = any(is_validation_command(c) or runs_edited_code(c, edited_files, root) for c in commands)
+    validated = any(n >= last_edit and (is_validation_command(c) or runs_edited_code(c, edited_files, root)) for n, c in commands)
     return edited, validated, "\n".join(texts), targets_all
 
 

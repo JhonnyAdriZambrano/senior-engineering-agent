@@ -3,7 +3,7 @@ name: engineering-quality-and-performance
 description: Usar cuando la tarea involucra diseño de algoritmos/estructuras de datos, rendimiento de sistemas o bases de datos, decisiones de arquitectura, o verificación de documentación oficial/versiones.
 ---
 
-> Rutas citadas en esta Skill (`core/`, `modules/`, `manifest.yaml`…): relativas a la carpeta `senior-engineering-agent/` instalada en la raíz del proyecto.
+> Rutas citadas en esta Skill (`core/`, `modules/`, `manifest.yaml`…): relativas a la carpeta del plugin, que se indica al iniciar la sesión (línea «[SEA] Rutas citadas…»).
 
 ## Prácticas de ingeniería
 - **Problema antes que patrón.** Evita Pattern-Driven Development: un patrón
