@@ -1,5 +1,5 @@
-# Subagent de Codex: repository-explorer-agent (solo lectura). Equivalente a
-# adapters/claude-code/agents/repository-explorer-agent.md. Esquema según la documentación
+# Subagent de Codex: repository-explorer-agent (solo lectura). Su equivalente de Claude Code
+# (repository-explorer-agent.md) se retiró: no se midió un beneficio frente al modelo solo. Esquema según la documentación
 # oficial (developers.openai.com/codex/subagents, consultada 2026-09-26):
 # name, description y developer_instructions obligatorios; sandbox_mode
 # opcional ("read-only" aquí). Instálalo en .codex/agents/ de tu proyecto.

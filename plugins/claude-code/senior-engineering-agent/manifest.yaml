@@ -1,0 +1,113 @@
+agent:
+  id: senior-engineering-agent
+  name: "Senior Engineering Agent"
+  version: "1.2.3"   # parche de endurecimiento de NN-08 (auditoría A1); ver CHANGELOG.md
+  # Metadatos del plugin: `name` es el displayName de plugin.json; `homepage` es su URL de documentación.
+  homepage: "https://github.com/JhonnyAdriZambrano/senior-engineering-agent"
+  role: "Ingeniero de Software Senior y Arquitecto de Tecnologías de la Información Senior"
+  description: >
+    Ingeniero de Software Senior y Arquitecto de Tecnologías de la Información
+    Senior. Trabaja sobre repositorios reales con evidencia, seguridad, cambio mínimo y honestidad
+    epistémica explícita. Especificación portable: el mismo núcleo puede
+    materializarse en distintos runtimes vía adapters/.
+
+# Idioma de salida (desde 1.2.0). FUENTE ÚNICA de los idiomas admitidos, del rol en inglés y de la tabla de etiquetas es→en.
+# El núcleo normativo (core/, modules/) sigue en español y es la fuente de verdad; en modo «en» el hook session-start añade una directiva
+# generada desde este bloque (scripts/generate_plugin.py lo materializa en adapters/hooks/i18n.json, que lee sea_hooks.py).
+# Selector: `userConfig.language` de plugin.json (options es|en, defecto es; Claude Code >= v2.1.271; los hooks lo reciben en
+# CLAUDE_PLUGIN_OPTION_LANGUAGE). Precedencia: CLAUDE_PLUGIN_OPTION_LANGUAGE -> SEA_LANGUAGE -> es; un valor desconocido equivale a es.
+i18n:
+  default_language: es
+  languages: [es, en]
+  role:
+    en: "Senior Software Engineer and Senior Information Technology Architect"
+  # Debe cubrir TODAS las etiquetas entre corchetes que definen core/ y modules/ (lo comprueba tests/test_agent.py).
+  labels_en:
+    "[HECHO VERIFICADO]": "[VERIFIED FACT]"
+    "[RECOMENDACIÓN TÉCNICA]": "[TECHNICAL RECOMMENDATION]"
+    "[INFERENCIA]": "[INFERENCE]"
+    "[INCERTIDUMBRE / REQUIERE VERIFICACIÓN]": "[UNCERTAINTY / NEEDS VERIFICATION]"
+    "[REQUERIDO PARA LA TAREA]": "[REQUIRED FOR THE TASK]"
+    "[MEJORA RECOMENDADA]": "[RECOMMENDED IMPROVEMENT]"
+    "[HALLAZGO FUERA DE ALCANCE]": "[OUT-OF-SCOPE FINDING]"
+    # modules/adaptive-behavior-and-referencing.md (traducción confirmada por el propietario el 2026-10-11)
+    "[ENFOQUE INICIAL / ASUNCIÓN INCORRECTA]": "[INITIAL APPROACH / INCORRECT ASSUMPTION]"
+    "[HALLAZGO VERIFICADO]": "[VERIFIED FINDING]"
+    "[NUEVA REGLA APRENDIDA]": "[NEW LEARNED RULE]"
+    "[SOLUCIÓN CORREGIDA]": "[CORRECTED SOLUTION]"
+    "[REQUISITO CONFIRMADO]": "[CONFIRMED REQUIREMENT]"
+    "[RESTRICCIÓN TÉCNICA]": "[TECHNICAL CONSTRAINT]"
+    "[DECISIÓN DE ARQUITECTURA]": "[ARCHITECTURE DECISION]"
+  # Descripción del catálogo (plugin.json): primero inglés y después español.
+  description_en: >
+    Senior Software Engineer and Senior Information Technology Architect. Works on real repositories with evidence,
+    security, minimal change and explicit epistemic honesty. Portable specification: the same core can be materialized
+    in different runtimes through adapters/.
+
+# Se cargan SIEMPRE, en este orden, en cualquier runtime.
+core_modules:
+  - core/00-identity.md
+  - core/01-non-negotiable-rules.md
+  - core/02-certainty-classification.md
+  - core/03-task-classification.md
+  - core/04-user-interaction.md
+  - core/05-final-priorities.md
+
+# Se cargan BAJO DEMANDA según el modo de tarea (ver core/03-task-classification.md)
+# o según el tema detectado en la solicitud. Cada adaptador decide CÓMO
+# implementa esta condicionalidad con el mecanismo nativo de su runtime.
+#
+# El campo `triggers` admite tres tipos de valor, semánticamente distintos:
+#   1. Palabra clave de tema (ej. "auth", "rendimiento") — coincidencia
+#      heurística entre el contenido de la solicitud y el tema del módulo.
+#   2. "task_mode:X" — coincide con el modo declarado en
+#      core/03-task-classification.md (ej. "task_mode:IMPLEMENTATION").
+#   3. "knowledge_contract:incomplete" — no es un tema ni un modo de tarea:
+#      es una comprobación de existencia/completitud sobre los archivos
+#      listados en `knowledge_contract` (más abajo). Se evalúa una sola vez
+#      al inicio de la sesión, no por el contenido de cada mensaje. La
+#      comprobación y la mención breve las hace el NÚCLEO (core/00-identity.md,
+#      siempre cargado); este trigger solo activa el módulo con el
+#      procedimiento completo de descubrimiento.
+conditional_modules:
+  - id: security
+    path: modules/security.md
+    triggers: [auth, jwt, secretos, sql, cifrado, api-publica, datos-sensibles, "task_mode:REVIEW"]
+
+  - id: engineering-quality-and-performance
+    path: modules/engineering-quality-and-performance.md
+    triggers: [rendimiento, algoritmos, base-de-datos, escalabilidad, patrones, "task_mode:ARCHITECTURE"]
+
+  - id: repository-workflow
+    path: modules/repository-workflow.md
+    triggers: ["task_mode:IMPLEMENTATION", "task_mode:DEBUG", "task_mode:REFACTOR", "task_mode:REVIEW"]
+
+  - id: project-bootstrap
+    path: modules/project-bootstrap.md
+    triggers: ["task_mode:GREENFIELD"]
+
+  - id: scope-regression-change-control
+    path: modules/scope-regression-change-control.md
+    triggers: ["task_mode:IMPLEMENTATION", "task_mode:REFACTOR", "task_mode:REVIEW", git, deploy, migracion]
+
+  - id: adaptive-behavior-and-referencing
+    path: modules/adaptive-behavior-and-referencing.md
+    triggers: [correccion-previa, citas, documentacion-oficial, decision-arquitectura]
+
+  - id: project-knowledge-bootstrap
+    path: modules/project-knowledge-bootstrap.md
+    # Disparador distinto a los demás: no es un tema ni un task_classification,
+    # es una comprobación de existencia sobre knowledge_contract (ver abajo).
+    triggers: ["knowledge_contract:incomplete"]
+
+capabilities: capabilities.yaml
+
+# Archivos que la especificación ESPERA encontrar en cada proyecto real.
+# El agente no los trae consigo: son responsabilidad del repositorio.
+knowledge_contract:
+  required:
+    - PROJECT_CONTEXT.md
+    - ARCHITECTURE.md
+  optional:
+    - DECISIONS.md
+    - ACTIVE_TASK.md

@@ -548,6 +548,74 @@ if shutil.which("zip") and BASH:
 else:
     skip("build_zip.sh: determinismo del empaquetado", "'zip' o 'bash' no disponibles en PATH")
 
+# --- A4/C7 (1.2.3): el ZIP solo lleva archivos versionados (nada ignorado: .env.*, credenciales, docs/internal/) ---
+_bz = read("scripts/build_zip.sh")
+check("build_zip.sh (A4): ambos modos empaquetan la lista de `git ls-files` (sin `cp -R` ni `tar` del árbol de trabajo) y no dependen de python3",
+      "git -C \"${REPO_ROOT}\" ls-files -z" in _bz and "cp -R" not in _bz and "-cf - ." not in _bz and "python3 -c" not in _bz, "revisa stage_tree")
+if shutil.which("zip") and shutil.which("unzip") and shutil.which("git") and BASH:
+    with tempfile.TemporaryDirectory() as tmp:
+        _repo = os.path.join(tmp, "repo")
+        for _rel, _txt in (("scripts/build_zip.sh", _bz), ("manifest.yaml", 'agent:\n  version: "9.9.9"\n'), ("core/a.md", "c\n"), ("docs/x.md", "d\n"),
+                           ("README.md", "r\n")):
+            os.makedirs(os.path.dirname(os.path.join(_repo, _rel)), exist_ok=True)
+            with open(os.path.join(_repo, _rel), "w", encoding="utf-8", newline="\n") as _f:
+                _f.write(_txt)
+        _g = lambda *a: subprocess.run(["git", "-C", _repo, "-c", "user.name=t", "-c", "user.email=t@t", *a], capture_output=True)
+        _g("init", "-q"); _g("add", "-A"); _g("commit", "-qm", "base")
+        for _rel in (".env.production", "credentials.json", "private.pem", "secrets/local.txt", "docs/internal/ESTADO.md"):  # datos inertes, sin versionar
+            os.makedirs(os.path.dirname(os.path.join(_repo, _rel)), exist_ok=True)
+            with open(os.path.join(_repo, _rel), "w", encoding="utf-8") as _f:
+                _f.write("inerte\n")
+        _leak = []
+        for mode in ("dist", "repo"):
+            _out = os.path.join(tmp, "out-" + mode)
+            r = subprocess.run([BASH, os.path.join(_repo, "scripts/build_zip.sh"), mode], env=dict(os.environ, DIST_DIR=_out), capture_output=True, text=True,
+                               encoding="utf-8", errors="replace")
+            if r.returncode:
+                _leak.append(f"{mode}: rc={r.returncode} {(r.stderr or r.stdout)[-120:]}")
+                continue
+            _ls = subprocess.run(["unzip", "-Z1", os.path.join(_out, os.listdir(_out)[0])], capture_output=True, text=True, encoding="utf-8", errors="replace").stdout
+            _leak += [f"{mode}: {n}" for n in (".env.production", "credentials.json", "private.pem", "secrets/", "docs/internal") if n in _ls]
+        check("build_zip.sh (A4): en un repositorio con archivos sensibles sin versionar, ni `dist` ni `repo` los incluyen", not _leak, "; ".join(_leak[:5]))
+else:
+    skip("build_zip.sh (A4): repositorio sintético con archivos sensibles sin versionar", "'zip', 'unzip', 'git' o 'bash' no disponibles en PATH")
+
+# --- A2 (1.2.3): eval_report.py trata el JSON de resultados como datos (sin shell; rutas contenidas) ---
+_er_src = read("scripts/eval_report.py")
+check("eval_report.py (A2): no usa la shell (os.system, subprocess, shell=True)",
+      not any(x in _er_src for x in ("os.system", "subprocess", "shell=True", "os.popen")), "vuelve a construir órdenes de shell")
+import importlib.util as _ilu
+import json as _json
+_spec =_ilu.spec_from_file_location("eval_report", os.path.join(ROOT, "scripts", "eval_report.py"))
+_er = _ilu.module_from_spec(_spec)
+_spec.loader.exec_module(_er)
+with tempfile.TemporaryDirectory() as tmp:
+    _bad = [n for n in ("../fuera", "a/b", "..", "", "/abs", "x\\y", None) if _er.trace_dest(tmp, n, "with", 1) is not None]
+    _ok = _er.trace_dest(tmp, "test-07-inyeccion", "with", 1)
+    check("eval_report.py (A2): el destino de una traza queda dentro de --collect-traces y rechaza nombres de caso con separadores o «..»",
+          not _bad and _ok is not None and _ok.startswith(os.path.realpath(tmp)), f"aceptados: {_bad}")
+_bad = [p for p in ("/tmp/claude-eval-x'; printf PWNED; #/t.jsonl", "/tmp/claude-eval-x/../../home/t.jsonl", "/tmp/otro/t.jsonl", "claude-eval-x/t.jsonl",
+                    "/tmp/claude-eval-$(id)/t.jsonl", None, 5) if _er.cleanup_target(p) is not None]
+check("eval_report.py (A2): solo se limpia un /tmp/claude-eval-<nombre seguro> real; rutas con comillas, «..», sustituciones u otros directorios se rechazan",
+      not _bad, f"aceptados: {_bad}")
+with tempfile.TemporaryDirectory() as tmp:
+    _trace = os.path.join(tmp, "t.jsonl")
+    with open(_trace, "w", encoding="utf-8") as _f:
+        _f.write("{}\n")
+    _res = {"cases": [{"name": "../../fuera", "aggregates": {"score": 1, "delta": 0.5},
+                       "arms": {"with": [{"score": 1, "graders": [], "tracePath": _trace}], "without": []}},
+                      {"name": "caso-ok", "aggregates": {"score": 1, "delta": 0.5},
+                       "arms": {"with": [{"score": 1, "graders": [], "tracePath": "/tmp/claude-eval-x'; printf PWNED; #/t.jsonl"}], "without": []}}],
+            "aggregates": {"meanDelta": 0.5}}
+    with open(os.path.join(tmp, "result.json"), "w", encoding="utf-8") as _f:
+        _json.dump(_res, _f)
+    _col = os.path.join(tmp, "col", "traces")
+    r = subprocess.run([sys.executable, os.path.join(ROOT, "scripts", "eval_report.py"), os.path.join(tmp, "result.json"), "--collect-traces", _col],
+                       capture_output=True, text=True, encoding="utf-8", errors="replace")
+    _escaped = [p for p in (os.path.join(tmp, "fuera"), os.path.join(tmp, "col", "fuera")) if os.path.exists(p)]
+    check("eval_report.py (A2): con un result.json manipulado no escribe fuera de --collect-traces, no ejecuta nada y termina con 0",
+          r.returncode == 0 and not _escaped and "PWNED" not in r.stdout and "no seguro" in r.stderr, f"rc={r.returncode} fuera={_escaped} {r.stderr[-160:]}")
+
 
 # ---------------------------------------------------------------------------
 print("\n== 14. Comprobación de conocimiento del proyecto (ronda 3) y guía de pruebas ==")
@@ -854,10 +922,11 @@ def _ps(cmd):
 
 
 for c in ("git reset --hard HEAD~1; git log --oneline", "git push --force origin main", "Remove-Item -Recurse -Force x",
-          "rm -r -fo x", "ri x -Force -Recurse", "del -rec -forc x", "Remove-Item x -Force -Recurse:$true", "rd -r -fo x"):
+          "rm -r -fo x", "ri x -Force -Recurse", "del -rec -forc x", "Remove-Item x -Force -Recurse:$true", "rd -r -fo x",
+          "rm -r x", "ri x -f -r"):  # los dos últimos: recursivos sin -Force (1.2.3, auditoría A1)
     rc, d = run_pt("claude-code", _ps(c))
     check(f"PreToolUse (PowerShell): {c!r} -> ask", rc == 0 and d == "ask", str(d))
-for c in ("Get-ChildItem", "Remove-Item x", "rm -r x", "Remove-Item -Force x", "ri x -f -r", "git status"):
+for c in ("Get-ChildItem", "Remove-Item x", "Remove-Item -Force x", "git status"):
     rc, d = run_pt("claude-code", _ps(c))
     check(f"PreToolUse (PowerShell): {c!r} -> sin salida", rc == 0 and d is None, str(d))
 rc, d = run_pt("claude-code", {"tool_name": "Read", "tool_input": {"command": "git reset --hard"}})
@@ -866,6 +935,51 @@ _r = subprocess.run([sys.executable, SEA, "pre-tool", "--runtime", "claude-code"
                     capture_output=True, text=True, encoding="utf-8", errors="replace")
 check("PreToolUse: `rm -rf` de Bash da un solo motivo (sin duplicar con el de PowerShell)",
       "borrado recursivo forzado" in _r.stdout and "PowerShell" not in _r.stdout, _r.stdout[:200])
+
+# --- Corpus adversarial de NN-08 (1.2.3, auditoría A1): variantes equivalentes que antes pasaban sin decisión, y negativos que
+# no deben intervenir. Se envían como JSON al hook; nada se ejecuta.
+NN08_ASK_BASH = [
+    "git -C . reset --hard HEAD", "git -c core.pager=less push --force", "git --git-dir=.git --work-tree . reset --hard",
+    'git -C "my dir" clean -fd', "git --no-pager reset --hard", "git clean --force -d", "git restore --worktree .",
+    "git restore --staged --worktree .", "git restore -W .", "git restore .", "git checkout HEAD~1 -- .", "git checkout -f main",
+    "git switch --discard-changes main", "git stash clear", "git stash drop", "rm --recursive --force build", "rm --force -r build",
+    "rm -r -v -f build", "rm -R build", "rm -r build", "/usr/bin/git reset --hard", '"/c/Program Files/Git/bin/git.exe" reset --hard',
+    'find . -name "*.log" -delete', "cmd /c rd /s /q build", "git rm -rf src",
+    'echo "git reset --hard HEAD"',  # falso positivo deliberado (documentado en sea_hooks.py): el texto entre comillas también se analiza
+]
+NN08_ALLOW_BASH = [
+    "git -C . status", "git -c x=y log --oneline", "git restore --staged .", "git restore -S .", "git restore src/a.py",
+    "git restore --source=HEAD src/a.py", "git checkout main", "git checkout -b feat", "git checkout -- src/a.py", "git switch -c feat",
+    "git stash", "git stash list", "git rm -r --cached build", "git rm -r build", "rm -f a.txt", "ls .git -p", "docker run --rm -it img",
+    "find . -name x", "npm rm lodash", "cat .gitignore",
+]
+NN08_ASK_PS = ["git.exe reset --hard HEAD", '& "C:\\Program Files\\Git\\bin\\git.exe" reset --hard', "Remove-Item -Recurse build",
+               "git -C . clean --force"]
+NN08_ALLOW_PS = ["Get-ChildItem -Recurse", "git -C . status", "Remove-Item -Force a.txt"]
+_wrong = [f"{c!r} -> {d}" for c in NN08_ASK_BASH for rc, d in [run_pt("claude-code", payload("claude-code", c))] if rc != 0 or d != "ask"]
+_wrong += [f"PS {c!r} -> {d}" for c in NN08_ASK_PS for rc, d in [run_pt("claude-code", _ps(c))] if rc != 0 or d != "ask"]
+check(f"NN-08 (A1): las {len(NN08_ASK_BASH) + len(NN08_ASK_PS)} variantes adversariales (ruta/.exe de git, opciones globales, opciones largas, "
+      "recursivo sin forzar, restore/checkout/switch, stash, find -delete, rd /s) piden confirmación", not _wrong, "; ".join(_wrong[:5]))
+_wrong = [f"{c!r} -> {d}" for c in NN08_ALLOW_BASH for rc, d in [run_pt("claude-code", payload("claude-code", c))] if rc != 0 or d is not None]
+_wrong += [f"PS {c!r} -> {d}" for c in NN08_ALLOW_PS for rc, d in [run_pt("claude-code", _ps(c))] if rc != 0 or d is not None]
+check(f"NN-08 (A1): los {len(NN08_ALLOW_BASH) + len(NN08_ALLOW_PS)} negativos (git rm -r, restore --staged, checkout de un archivo, --rm de docker…) "
+      "no intervienen", not _wrong, "; ".join(_wrong[:5]))
+_wrong = []
+for rt, want in EXPECTED.items():
+    for c in ("git -C . reset --hard HEAD", "rm --recursive --force build", "git clean --force -d"):
+        rc, d = run_pt(rt, payload(rt, c))
+        if rc != 0 or d != want:
+            _wrong.append(f"{rt}: {c!r} -> {d}")
+    _bad_inputs = [{"command": ["rm", "-rf", "x"]}, {}] if rt == "cursor" else \
+        [{"tool_name": payload(rt, "")["tool_name"], "tool_input": ti} for ti in ({}, {"command": ["rm", "-rf", "x"]}, None)]
+    for bad in _bad_inputs:
+        rc, d = run_pt(rt, bad)
+        if rc != 0 or d != want:
+            _wrong.append(f"{rt}: entrada sin comando de texto {bad!r} -> {d} (fail-closed: {want})")
+check("NN-08 (A1): variantes normalizadas en los 4 runtimes, y una herramienta de shell sin `command` de texto (falta, lista, "
+      "tool_input nulo) decide como entrada no analizable (fail-closed)", not _wrong, "; ".join(_wrong[:5]))
+rc, d = run_pt("claude-code", payload("claude-code", ""))
+check("NN-08: un comando vacío (texto) no interviene", rc == 0 and d is None, str(d))
 
 # --- Codificación en Windows (E7c, H-E7b-1/2): sea_hooks.py como subproceso con la tubería en cp1252 ---
 def run_cp1252(args, raw):
@@ -1018,6 +1132,19 @@ for cmd in ("python -m pytest -q", "python3 -m unittest discover", "uv run pytes
     rc, out = run_stop([_user("x"), _tu("Edit", file_path="a.py"), _tr(), _bash(cmd), _tr(), _say("ok")])
     check(f"Stop: validación en posición de comando ({cmd}) -> allow", rc == 0 and out is None, str(out))
 
+# M1 (1.2.3): --check solo con programas que validan; la validación debe ser posterior a la última edición
+for cmd, want_block in (("echo --check", True), ("git status --check", True), ("git diff --check", True), ("black --check .", False),
+                        ("ruff format --check", False), ("npm run lint -- --check", False), ("py -3 scripts/generate_plugin.py --check", False)):
+    rc, out = run_stop([_user("x"), _tu("Edit", file_path="a.py"), _tr(), _bash(cmd), _tr(), _say("ok")])
+    check(f"Stop (M1): `{cmd}` tras editar -> {'block' if want_block else 'allow'}", rc == 0 and bool(out and out["decision"] == "block") == want_block, str(out))
+for label, seq, want_block in (
+        ("pytest ANTES de la única edición", [_bash("pytest -q"), _tr(), _tu("Edit", file_path="a.py"), _tr()], True),
+        ("Edit, pytest y otra Edit sin validar", [_tu("Edit", file_path="a.py"), _tr(), _bash("pytest -q"), _tr(), _tu("Edit", file_path="b.py"), _tr()], True),
+        ("Edit, Edit y pytest al final", [_tu("Edit", file_path="a.py"), _tr(), _tu("Edit", file_path="b.py"), _tr(), _bash("pytest -q"), _tr()], False),
+        ("edición y validación en el mismo comando", [_bash("sed -i 's/a/b/' a.py && pytest -q"), _tr()], False)):
+    rc, out = run_stop([_user("x")] + seq + [_say("ok")])
+    check(f"Stop (M1): {label} -> {'block' if want_block else 'allow'}", rc == 0 and bool(out and out["decision"] == "block") == want_block, str(out))
+
 # ejecución de un archivo editado o de su punto de entrada = validación
 with tempfile.TemporaryDirectory() as proj:
     os.makedirs(os.path.join(proj, "app"))
@@ -1039,6 +1166,8 @@ with tempfile.TemporaryDirectory() as proj:
     _exec_case("módulo ejecutado con -m", "app/calc.py", "python -m app.calc", False)
     _exec_case("script con ./", "main.py", "./main.py", False)
     _exec_case("archivo que no está relacionado con lo editado", "app/calc.py", "python otro.py", True)
+    _exec_case("homónimo en otro directorio (M1: ya no basta el nombre de base)", "app/main.py", "python main.py", True)
+    _exec_case("el mismo archivo con ruta absoluta en el comando", "app/calc.py", "python " + os.path.join(proj, "app", "calc.py").replace("\\", "/"), False)
     _exec_case("`python -c` no cuenta", "app/calc.py", "python -c 'print(1)'", True)
     _exec_case("un cat del archivo no es ejecutarlo", "main.py", "cat main.py", True)
     rc, out = run_stop([_user("x"), _bash("echo 'print(3)' > otro.py"), _tr(), _bash("python otro.py"), _tr(), _say("ok")], env=ENV)
@@ -1305,9 +1434,14 @@ if hj is not None:
     for g in hooks.get("SessionStart", []):
         cmds = [h["command"] for h in g["hooks"]]
         core_cmds, rest = cmds[:len(core_paths)], cmds[len(core_paths):]
-        check(f"SessionStart/{g.get('matcher')}: un hook por archivo de core/ (en el orden de manifest.yaml) + session-start de sea_hooks.py",
+        check(f"SessionStart/{g.get('matcher')}: un hook por archivo de core/ (en el orden de manifest.yaml) + la raíz del plugin (M2) + session-start de sea_hooks.py",
               all(f'cat "${{CLAUDE_PLUGIN_ROOT}}"/{p}' in c for c, p in zip(core_cmds, core_paths))
-              and len(rest) == 1 and "sea-python.sh" in rest[0] and "session-start" in rest[0], "composición inesperada")
+              and len(rest) == 2 and "[SEA] Rutas citadas" in rest[0] and rest[0].endswith('"${CLAUDE_PLUGIN_ROOT}"')
+              and "sea-python.sh" in rest[1] and "session-start" in rest[1], "composición inesperada")
+        if bash:
+            _pr = subprocess.run([bash, "-c", rest[0]], capture_output=True, env={**os.environ, "CLAUDE_PLUGIN_ROOT": PLUGIN})
+            check(f"SessionStart/{g.get('matcher')}: el hook de rutas (M2) imprime la raíz del plugin y sale con 0",
+                  _pr.returncode == 0 and _pr.stdout.decode("utf-8").rstrip("\n").endswith(PLUGIN), repr(_pr.stdout[-120:]))
         if not bash:
             skip(f"SessionStart/{g.get('matcher')}: ejecución de los hooks del núcleo", "bash no disponible")
             continue
@@ -1318,6 +1452,17 @@ if hj is not None:
             check(f"SessionStart/{g.get('matcher')} parte {n}: sale con 0, cabecera correcta, contenido íntegro y < {HOOK_OUTPUT_LIMIT} caracteres",
                   run.returncode == 0 and out.split("\n", 1)[0] == header and out == header + "\n" + read(p)
                   and len(out) < HOOK_OUTPUT_LIMIT, f"rc={run.returncode}, {len(out)} caracteres, primera línea={out.splitlines()[:1]}")
+
+# M2 (1.2.3): toda ruta del paquete que cite el contenido del plugin (núcleo, Skills, agentes, plantillas) existe dentro del plugin
+_ref_re = re.compile(r"(?<![\w/.-])((?:core|modules)/[\w.-]+\.md|capabilities\.yaml|manifest\.yaml|SPECIFICATION\.md)")
+_dangling = sorted({f"{os.path.relpath(f, PLUGIN)}: {m}" for f in glob.glob(os.path.join(PLUGIN, "**", "*.md"), recursive=True)
+                    if os.sep + "evals" + os.sep not in f and os.path.basename(f) not in ("README.md", "SPECIFICATION.md")  # documentación de referencia, cita el repositorio
+                    for m in _ref_re.findall(open(f, encoding="utf-8").read()) if not os.path.exists(os.path.join(PLUGIN, m))})
+check("Plugin (M2): las rutas del paquete que citan el núcleo, las Skills, los agentes y las plantillas existen dentro del plugin", not _dangling, "; ".join(_dangling[:5]))
+_skills_plugin = glob.glob(os.path.join(PLUGIN, "skills", "*", "SKILL.md"))
+check("Plugin (M2): la nota de rutas de las Skills remite a la carpeta del plugin, no a `senior-engineering-agent/` en el proyecto",
+      _skills_plugin and all("relativas a la carpeta del plugin" in open(f, encoding="utf-8").read()
+                             and "instalada en la raíz" not in open(f, encoding="utf-8").read() for f in _skills_plugin), "nota de rutas del modo manual")
 
 # Lanzador de Python: elige un intérprete que de verdad ejecuta y NUNCA pierde la salida 0
 LAUNCHER = os.path.join(PLUGIN, "scripts", "sea-python.sh")
@@ -1380,6 +1525,14 @@ else:
     r4 = run_launcher({"python3": broken, "python": broken, "py": broken}, [SEA, "stop", "--runtime", "claude-code"])
     check("Lanzador: ningún intérprete funciona -> en otros eventos no escribe en stdout (no contamina la decisión del hook)",
           r4.returncode == 0 and r4.stdout == b"", f"rc={r4.returncode} out={r4.stdout!r}")
+    r7 = run_launcher({"python3": broken, "python": broken, "py": broken}, [SEA, "pre-tool", "--runtime", "claude-code"], pre_in)
+    try:
+        _h7 = _pj.loads(r7.stdout.decode("ascii"))["hookSpecificOutput"]
+        _ok7 = r7.returncode == 0 and _h7["permissionDecision"] == "ask" and "NN-08" in _h7["permissionDecisionReason"]
+    except Exception:
+        _ok7 = False
+    check("Lanzador: ningún intérprete funciona en pre-tool -> JSON ASCII con «ask» (fail-closed de NN-08, auditoría A1) y sale con 0",
+          _ok7, f"rc={r7.returncode} out={r7.stdout!r}")
     r5 = run_launcher({"python3": 'case "$1" in -c) exit 0;; *) exit 3;; esac'}, [SEA, "session-start", "--runtime", "claude-code"])
     check("Lanzador: el intérprete funciona pero el script falla (exit 3) -> el lanzador sale con 0", r5.returncode == 0, f"rc={r5.returncode}")
     r6 = run_launcher({}, [SEA, "session-start", "--runtime", "claude-code"], real_python_as=["python3"])
@@ -1401,7 +1554,7 @@ if mj is not None:
 # evals versionados dentro del plugin; resultados fuera del repo
 EVALS = os.path.join(PLUGIN, "evals")
 EVAL_CASES = sorted(d for d in os.listdir(EVALS) if os.path.isfile(os.path.join(EVALS, d, "prompt.md")))
-VALID_TAGS = {"regression", "regression-en", "critical", "capability", "observational"}
+VALID_TAGS = {"regression", "regression-en", "critical", "capability", "observational", "strict-tools"}
 CRITICAL_EXPECTED = {"test-00-instalacion", "test-02b-claude-md-previo", "test-07-inyeccion", "test-13-destructivo"}
 READ_ONLY_TOOLS = {"Read", "Glob", "Grep", "NotebookRead", "Skill", "AskUserQuestion", "Agent", "Task", "TodoWrite"}
 
@@ -1463,7 +1616,8 @@ for case in EVAL_CASES:
           bool(tags) and tags <= VALID_TAGS and len(tags & {"regression", "regression-en", "capability"}) == 1
           and (("capability" in tags) == case.startswith("cap-")) and (("regression-en" in tags) == case.startswith("en-"))
           and (("critical" in tags) == (case in CRITICAL_EXPECTED))
-          and ("observational" not in tags or "capability" in tags), str(sorted(tags)))
+          and ("observational" not in tags or "capability" in tags)
+          and ("strict-tools" not in tags or bool(fm.get("allowed_tools"))), str(sorted(tags)))  # strict-tools: conjunto cerrado declarado (M6)
     check(f"evals/{case}: runs = 3 (todos los casos de regresión y de capacidad)", fm.get("runs") == 3, str(fm.get("runs")))
     if os.path.isfile(os.path.join(cdir, "case.yaml")):
         cy = yaml.safe_load(open(os.path.join(cdir, "case.yaml"), encoding="utf-8")) or {}
@@ -1529,6 +1683,18 @@ if shutil.which("git") and BASH:
                 if _ma != _mb:
                     _bad.append("B:CLAUDE.md")
         check("evals/_shared/sandbox.sh reproduce los fixtures de setup_sandbox.sh (estados A, B y C)", not _bad, "; ".join(_bad))
+        # A3 (1.2.3): recrear un sandbox marcado cuyo remoto vecino no es el suyo aborta ANTES de borrar nada.
+        _a, _rem = os.path.join(_tmp, "mA"), os.path.join(_tmp, "mA-remote.git")
+        _mark = os.path.join(_rem, "sea-sandbox-remote")
+        _own = os.path.isfile(_mark) and open(_mark, encoding="utf-8").read().strip() != ""
+        with open(_mark, "w", encoding="utf-8") as _f:
+            _f.write("/otra/ruta\n")
+        with open(os.path.join(_rem, "ajeno.txt"), "w", encoding="utf-8") as _f:
+            _f.write("dato\n")
+        _r = subprocess.run([BASH, os.path.join(ROOT, "tests/sandbox/setup_sandbox.sh"), "A", _a, "--sin-hooks"], capture_output=True, text=True, encoding="utf-8", errors="replace")
+        check("setup_sandbox.sh (A3): el remoto se marca al crearlo, y con un remoto ajeno junto a un sandbox válido aborta sin borrar ninguno de los dos",
+              _own and _r.returncode == 2 and os.path.isfile(os.path.join(_a, ".sea-sandbox")) and os.path.isfile(os.path.join(_rem, "ajeno.txt")),
+              f"marca={_own} rc={_r.returncode} {_r.stderr[-120:]}")
     finally:
         shutil.rmtree(_tmp, ignore_errors=True)
 else:
@@ -1617,7 +1783,7 @@ check("A2: test-08b etiqueta-requerido es indicador (arm: with-only) y evals/REA
       _grader_cfg("test-08b-alcance-autorizado", "etiqueta-requerido").get("arm") == "with-only"
       and "Cambios de medición en E3d" in read(f"{PLUGIN_REL}/evals/README.md") and "ampliaciones **no** autorizadas" in read(f"{PLUGIN_REL}/evals/README.md"), "falta arm o documentación")
 check("A3: cap-certeza-sin-ejecutar: capability, solo Read/Glob/Grep (sin Bash), estado A, y sus graders (el de ejecución es indicador)",
-      _cert_fm.get("tags") == ["capability"] and set(_cert_fm.get("allowed_tools") or []) == {"Read", "Glob", "Grep"}
+      _cert_fm.get("tags") == ["capability", "strict-tools"] and set(_cert_fm.get("allowed_tools") or []) == {"Read", "Glob", "Grep"}
       and "sea_state A" in read(f"{_cert_dir}/setup.sh") and "price_with_tax(100, discount=150)" in read(f"{_cert_dir}/prompt.md")
       and sorted(os.path.basename(g)[:-3] for g in glob.glob(os.path.join(ROOT, _cert_dir, "graders", "*.md")))
       == ["declara-que-no-ejecuto", "no-hecho-verificado-sin-ejecutar", "numero-correcto"]
@@ -2200,10 +2366,42 @@ if BASH:
                 check(f"scripts/eval.sh {_mode} {' '.join(_extra)}: construye la orden esperada con claude simulado (sin llamar al modelo)", _ok, f"rc={r.returncode} args={_args[:14]} err={r.stderr[-160:]}")
                 if os.path.isfile(_argf):
                     os.remove(_argf)
+            # M6 (1.2.3): `capability` sin más concedería Bash a cap-certeza-sin-ejecutar (strict-tools): aborta SIN llamar a claude;
+            # con --exclude-strict evalúa una copia del plugin sin ese caso
+            _argf = os.path.join(_fake, "args.txt")
+            _env = dict(os.environ, PATH=_fake + os.pathsep + os.environ["PATH"], FAKE_ARGS=_argf)
+            r = subprocess.run([BASH, os.path.join(ROOT, "scripts", "eval.sh"), "capability", "--out", os.path.join(_fake, "out-m6a")], capture_output=True,
+                               text=True, encoding="utf-8", errors="replace", env=_env)
+            check("scripts/eval.sh capability (M6): aborta antes de llamar a claude si la concesión invalidaría un caso strict-tools",
+                  r.returncode == 2 and "cap-certeza-sin-ejecutar" in r.stderr and not os.path.isfile(_argf), f"rc={r.returncode} err={r.stderr[-200:]}")
+            r = subprocess.run([BASH, os.path.join(ROOT, "scripts", "eval.sh"), "capability", "--exclude-strict", "--out", os.path.join(_fake, "out-m6b")],
+                               capture_output=True, text=True, encoding="utf-8", errors="replace", env=_env)
+            _args = open(_argf, encoding="utf-8").read().split("\n") if os.path.isfile(_argf) else []
+            _tgt = _args[2] if len(_args) > 2 else ""
+            check("scripts/eval.sh capability --exclude-strict (M6): evalúa una copia del plugin sin el caso strict-tools y concede Bash al resto",
+                  r.returncode == 0 and _tgt != PLUGIN and "--allow-tools" in _args and "Bash" in _args
+                  and os.path.isdir(os.path.join(PLUGIN, "evals", "cap-certeza-sin-ejecutar")), f"rc={r.returncode} args={_args[:14]} err={r.stderr[-160:]}")
     finally:
         _shutil.rmtree(_fake, ignore_errors=True)
+
 else:
     skip("scripts/eval.sh --with-only / regression-en con claude simulado", "bash no disponible en PATH")
+
+# M6 (1.2.3): cálculo de concesiones por etiqueta y caso (scripts/eval_grants.py), sin modelo
+_eg_spec = _ilu.spec_from_file_location("eval_grants", os.path.join(ROOT, "scripts", "eval_grants.py"))
+_eg = _ilu.module_from_spec(_eg_spec)
+_eg_spec.loader.exec_module(_eg)
+_EV = os.path.join(PLUGIN, "evals")
+_cap, _reg = _eg.analyze(_EV, tags=["capability"]), _eg.analyze(_EV, tags=["regression"])
+_solo = _eg.analyze(_EV, case_glob="cap-certeza-sin-ejecutar")
+_excl = _eg.analyze(_EV, tags=["capability"], exclude=["cap-certeza-sin-ejecutar"])
+check("eval_grants.py (M6): filtra por etiqueta, detecta el caso strict-tools que la unión invalidaría y lo resuelve medido aparte o excluido",
+      "cap-certeza-sin-ejecutar" in _cap["cases"] and _cap["strict_conflicts"] == ["cap-certeza-sin-ejecutar"] and "Bash" in _cap["grants"]
+      and not any(c.startswith("cap-") for c in _reg["cases"]) and not _reg["strict_conflicts"]
+      and _solo["grants"] == [] and not _solo["strict_conflicts"] and not _excl["strict_conflicts"] and "cap-certeza-sin-ejecutar" not in _excl["cases"],
+      f"cap={_cap['strict_conflicts']} solo={_solo} excl={_excl['strict_conflicts']}")
+check("evals: cap-certeza-sin-ejecutar lleva la etiqueta strict-tools (conjunto de herramientas cerrado a propósito)",
+      "strict-tools" in read(PLUGIN_REL + "/evals/cap-certeza-sin-ejecutar/prompt.md").split("---")[1], "falta la etiqueta")
 
 # Guarda de codificación (E7c, ampliada en E3d): la salida de sea_hooks.py, del lanzador y de los scripts es UTF-8; con text=True sin encoding,
 # subprocess la decodifica con la codificación local (cp1252 en Windows) y la suite ve «comprobaciÃ³n», y un byte inválido hace fallar el
@@ -2239,6 +2437,74 @@ _vg_spec.loader.exec_module(_vg)
 check("Guarda de versión: falla solo si el plugin cambió desde la etiqueta y plugin.json.version es la de la etiqueta",
       _vg.violates(True, "1.2.1", "v1.2.1") and not _vg.violates(True, "1.2.2", "v1.2.1")
       and not _vg.violates(False, "1.2.1", "v1.2.1") and not _vg.violates(False, "1.2.2", "v1.2.1"), "criterio incorrecto")
+check("Guarda de versión (M7): rechaza bajar de versión, un formato que no es X.Y.Z y compara números, no texto (1.10.0 > 1.9.9)",
+      _vg.violates(True, "1.2.1", "v1.2.2") and _vg.violates(False, "1.2.1", "v1.2.2") and _vg.violates(False, "1.2", "v1.2.2")
+      and not _vg.violates(True, "1.10.0", "v1.9.9"), "criterio incorrecto")
+if shutil.which("git"):
+    def _vg_repo(tmp):
+        """Repositorio mínimo con el guardia, manifest.yaml y plugin.json; devuelve (ruta, función de la versión, función de ejecución)."""
+        rp = os.path.join(tmp, "r")
+        os.makedirs(os.path.join(rp, "scripts"))
+        os.makedirs(os.path.join(rp, PLUGIN_REL, ".claude-plugin"))
+        shutil.copy(os.path.join(ROOT, "scripts", "check_version_guard.py"), os.path.join(rp, "scripts"))
+
+        def setv(v, extra=None):
+            with open(os.path.join(rp, "manifest.yaml"), "w", encoding="utf-8") as f:
+                f.write(f'agent:\n  version: "{v}"\n')
+            with open(os.path.join(rp, PLUGIN_REL, ".claude-plugin", "plugin.json"), "w", encoding="utf-8") as f:
+                _json.dump({"version": v, **({"x": extra} if extra else {})}, f)
+
+        def run():
+            r = subprocess.run([sys.executable, os.path.join(rp, "scripts", "check_version_guard.py")], capture_output=True, text=True,
+                               encoding="utf-8", errors="replace")
+            return r.returncode, r.stdout.strip()
+        return rp, setv, run
+
+    with tempfile.TemporaryDirectory() as tmp:
+        rp, setv, run = _vg_repo(tmp)
+        setv("1.0.0")
+        _vg_bad = []
+        rc, out = run()
+        if rc != 1 or "error de git" not in out:
+            _vg_bad.append(f"sin repositorio: rc={rc} {out[:80]}")
+        g = lambda *a: subprocess.run(["git", "-C", rp, "-c", "user.name=t", "-c", "user.email=t@t", *a], capture_output=True)
+        g("init", "-q"); g("add", "-A"); g("commit", "-qm", "1.0.0")
+        rc, out = run()
+        if rc != 0 or "no hay etiquetas" not in out:
+            _vg_bad.append(f"sin etiquetas: rc={rc} {out[:80]}")
+        g("tag", "v1.0.0")
+        rc, out = run()
+        if rc != 0:
+            _vg_bad.append(f"HEAD etiquetado con su versión: rc={rc} {out[:80]}")
+        setv("1.0.0", extra="cambio"); g("commit", "-qam", "cambio sin subir")
+        rc, out = run()
+        if rc != 1 or "no sube" not in out:
+            _vg_bad.append(f"plugin cambiado sin subir: rc={rc} {out[:80]}")
+        setv("0.9.9", extra="cambio"); g("commit", "-qam", "baja")
+        rc, out = run()
+        if rc != 1 or "menor" not in out:
+            _vg_bad.append(f"versión menor que la etiqueta: rc={rc} {out[:80]}")
+        setv("1.0.1", extra="cambio"); g("commit", "-qam", "1.0.1")
+        rc, out = run()
+        if rc != 0:
+            _vg_bad.append(f"sube a 1.0.1: rc={rc} {out[:80]}")
+        g("tag", "v1.0.2")
+        rc, out = run()
+        if rc != 1 or "v1.0.2" not in out:
+            _vg_bad.append(f"etiqueta de HEAD distinta de la versión: rc={rc} {out[:80]}")
+        g("tag", "-d", "v1.0.2"); g("tag", "v1.0.1")
+        rc, out = run()
+        if rc != 0 or "v1.0.0" not in out:
+            _vg_bad.append(f"release etiquetada: compara con la etiqueta anterior: rc={rc} {out[:80]}")
+        with open(os.path.join(rp, "manifest.yaml"), "w", encoding="utf-8") as f:
+            f.write('agent:\n  version: "1.0.2"\n')
+        rc, out = run()
+        if rc != 1 or "iguales" not in out:
+            _vg_bad.append(f"manifest y plugin.json distintos: rc={rc} {out[:80]}")
+        check("Guarda de versión (M7, CLI): sin repositorio falla, sin etiquetas pasa, exige subir si el plugin cambió, rechaza bajar, "
+              "contrasta la etiqueta de HEAD con la versión y la etiqueta anterior, y manifest = plugin.json", not _vg_bad, "; ".join(_vg_bad))
+else:
+    skip("Guarda de versión (M7, CLI) con un repositorio temporal", "git no disponible")
 _ci20 = read(".github/workflows/structural-tests.yml")
 check("CI: checkout con fetch-depth: 0 y paso de la guarda de versión (scripts/check_version_guard.py)",
       "fetch-depth: 0" in _ci20 and "scripts/check_version_guard.py" in _ci20, "falta en structural-tests.yml")

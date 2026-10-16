@@ -226,9 +226,11 @@ Claude Code (`.claude/skills/`) y a Codex, Cursor y Gemini CLI
 (ChatGPT Projects, Gemini Gems), el módulo se sube como archivo adjunto.
 
 **Subagents (complemento, solo lectura).** Claude Code incluye dos subagents
-sin permisos de escritura: `code-reviewer-agent` (revisión independiente, modo
+sin herramientas de escritura: `code-reviewer-agent` (revisión independiente, modo
 REVIEW) y `project-bootstrap-research-agent` (comparación de opciones con
-fuentes). Codex incluye además `repository-explorer-agent` (INSPECCIONAR/
+fuentes). En Claude Code la lectura exclusiva es una **instrucción**, no un
+confinamiento: el revisor conserva `Bash` para `git diff`/`git log`, y una shell
+puede escribir; en Codex sí la impone `sandbox_mode = "read-only"`. Codex incluye además `repository-explorer-agent` (INSPECCIONAR/
 COMPRENDER y propuesta de plan), marcado **sin medir**; se
 retiró de Claude Code (no se midió un beneficio frente al modelo solo), el único runtime con evaluación automatizada. Implementar, ejecutar tests y decidir
 quedan en el hilo principal: un subagent no puede usar la interacción
@@ -423,16 +425,16 @@ externo que ya no existe; las mitigaciones están en el núcleo
 
 ## 9. Próximos pasos
 
-Estado (versión 1.2.2): instalación como plugin de Claude Code
+Estado (versión 1.2.3): instalación como plugin de Claude Code
 (vía principal) y documentada por runtime, Skills generadas y compartidas por
 Claude Code, Codex, Cursor y Gemini CLI, Subagents de solo lectura, tests
 estructurales, script de sandbox para el benchmark, núcleo compacto
 sincronizado con los adaptadores sin `@import`, empaquetado determinista,
 README y CHANGELOG, plugin generado con hooks `SessionStart`, `PreToolUse` y
 `Stop`, y evaluación automatizada (`scripts/eval.sh`, `claude plugin eval`). Las
-etiquetas publicadas (v1.0.0, v1.1.0, v1.1.2, v1.2.0 y v1.2.1; 1.1.1 no se
+etiquetas publicadas (v1.0.0, v1.1.0, v1.1.2, v1.2.0, v1.2.1 y v1.2.2; 1.1.1 no se
 etiquetó) se asignaron al cumplirse sus puertas de salida, definidas en
-`CHANGELOG.md`; la v1.2.2 la crea el propietario al cumplir la suya. Lo que
+`CHANGELOG.md`. Lo que
 sigue pendiente:
 
 1. **Validación de comportamiento real contra un runtime.** Los tests de

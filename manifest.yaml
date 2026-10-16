@@ -1,7 +1,7 @@
 agent:
   id: senior-engineering-agent
   name: "Senior Engineering Agent"
-  version: "1.2.2"   # parche de cierre de release: sin cambio de comportamiento; ver CHANGELOG.md
+  version: "1.2.3"   # parche de endurecimiento de NN-08 (auditoría A1); ver CHANGELOG.md
   # Metadatos del plugin: `name` es el displayName de plugin.json; `homepage` es su URL de documentación.
   homepage: "https://github.com/JhonnyAdriZambrano/senior-engineering-agent"
   role: "Ingeniero de Software Senior y Arquitecto de Tecnologías de la Información Senior"

@@ -10,12 +10,23 @@
 # stdin (el JSON del hook) pasa intacto al script.
 #
 # Garantía: SIEMPRE sale con 0. Un hook que falla no debe romper la sesión; si
-# ningún intérprete funciona, o el script falla, solo avisa.
+# ningún intérprete funciona, o el script falla, solo avisa. Excepción (fail-closed
+# de NN-08, 1.2.3): en pre-tool sin intérprete no se puede analizar el comando, así
+# que se pide confirmación ("ask") en vez de dejarlo pasar en silencio.
 
 warn() {
   # SessionStart: el stdout llega como contexto, así que el aviso se ve en la sesión.
   if [ "$2" = "session-start" ]; then
     echo "[Senior Engineering Agent] $1"
+  fi
+  if [ "$2" = "pre-tool" ]; then
+    # JSON en ASCII puro (\uXXXX); idioma con la misma precedencia que sea_hooks.py.
+    if [ "${CLAUDE_PLUGIN_OPTION_LANGUAGE:-${SEA_LANGUAGE:-es}}" = "en" ]; then
+      reason='NN-08: the command could not be parsed (no working Python interpreter); review it before authorizing'
+    else
+      reason='NN-08: no se pudo analizar el comando (no hay un int\u00e9rprete de Python funcional); rev\u00edsalo antes de autorizar'
+    fi
+    printf '{"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "ask", "permissionDecisionReason": "%s"}}\n' "${reason}"
   fi
   echo "[Senior Engineering Agent] $1" >&2
 }

@@ -3,7 +3,7 @@ name: project-knowledge-bootstrap
 description: Usar cuando PROJECT_CONTEXT.md y/o ARCHITECTURE.md no existen o están vacíos/con placeholders al iniciar sesión en un proyecto existente, o el usuario pide inicializar/actualizar el conocimiento del proyecto.
 ---
 
-> Rutas citadas en esta Skill (`core/`, `modules/`, `manifest.yaml`…): relativas a la carpeta `senior-engineering-agent/` instalada en la raíz del proyecto.
+> Rutas citadas en esta Skill (`core/`, `modules/`, `manifest.yaml`…): relativas a la carpeta del plugin, que se indica al iniciar la sesión (línea «[SEA] Rutas citadas…»).
 
 **Reparto de responsabilidades.** La comprobación inicial y la mención breve
 (una sola vez, una línea) viven en `core/00-identity.md`, que se carga

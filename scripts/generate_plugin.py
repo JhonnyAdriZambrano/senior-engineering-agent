@@ -68,12 +68,23 @@ LAUNCHER = r'''#!/usr/bin/env bash
 # stdin (el JSON del hook) pasa intacto al script.
 #
 # Garantía: SIEMPRE sale con 0. Un hook que falla no debe romper la sesión; si
-# ningún intérprete funciona, o el script falla, solo avisa.
+# ningún intérprete funciona, o el script falla, solo avisa. Excepción (fail-closed
+# de NN-08, 1.2.3): en pre-tool sin intérprete no se puede analizar el comando, así
+# que se pide confirmación ("ask") en vez de dejarlo pasar en silencio.
 
 warn() {
   # SessionStart: el stdout llega como contexto, así que el aviso se ve en la sesión.
   if [ "$2" = "session-start" ]; then
     echo "[Senior Engineering Agent] $1"
+  fi
+  if [ "$2" = "pre-tool" ]; then
+    # JSON en ASCII puro (\uXXXX); idioma con la misma precedencia que sea_hooks.py.
+    if [ "${CLAUDE_PLUGIN_OPTION_LANGUAGE:-${SEA_LANGUAGE:-es}}" = "en" ]; then
+      reason='NN-08: the command could not be parsed (no working Python interpreter); review it before authorizing'
+    else
+      reason='NN-08: no se pudo analizar el comando (no hay un int\u00e9rprete de Python funcional); rev\u00edsalo antes de autorizar'
+    fi
+    printf '{"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "ask", "permissionDecisionReason": "%s"}}\n' "${reason}"
   fi
   echo "[Senior Engineering Agent] $1" >&2
 }
@@ -166,11 +177,11 @@ PLUGIN_README = """# {name}
 > Senior Software Engineer and Senior Information Technology Architect for Claude Code. Version {version}.
 
 **What it is.** A Claude Code plugin that loads a senior-engineering core (identity, non-negotiable rules, certainty
-labels, task workflows) at session start, plus 7 Skills, 2 read-only subagents and deterministic hooks. It works on
+labels, task workflows) at session start, plus 7 Skills, 2 subagents without write tools and deterministic hooks. It works on
 real repositories with evidence, security, minimal change and explicit epistemic honesty.
 
 **Qué es (español).** Plugin de Claude Code que carga al iniciar la sesión un núcleo de ingeniería senior (identidad,
-reglas no negociables, etiquetas de certeza y workflows), con 7 Skills, 2 subagentes de solo lectura y hooks
+reglas no negociables, etiquetas de certeza y workflows), con 7 Skills, 2 subagentes sin herramientas de escritura y hooks
 deterministas. El núcleo normativo está en español; el selector de idioma permite respuestas en inglés.
 
 ## Install
@@ -231,10 +242,40 @@ def py_command(sub, runtime="claude-code"):
     )
 
 
+# El núcleo y las Skills citan rutas del paquete (`capabilities.yaml`, `manifest.yaml`, `modules/…`, `SPECIFICATION.md`), que el plugin
+# distribuye en su raíz (auditoría M2, 1.2.3). Como el modelo no conoce esa raíz, un hook de SessionStart la dice; la nota de rutas de las
+# Skills del plugin remite a esa línea en vez de a una carpeta `senior-engineering-agent/` en el proyecto, que con el plugin no existe.
+PATHS_LINE = "[SEA] Rutas citadas por el núcleo y las Skills (core/, modules/, capabilities.yaml, manifest.yaml, SPECIFICATION.md): relativas a la carpeta del plugin:"
+SKILL_NOTE_REPO = (
+    "> Rutas citadas en esta Skill (`core/`, `modules/`, `manifest.yaml`…): "
+    "relativas a la carpeta `senior-engineering-agent/` instalada en la raíz "
+    "del proyecto.\n\n"
+)
+SKILL_NOTE_PLUGIN = (
+    "> Rutas citadas en esta Skill (`core/`, `modules/`, `manifest.yaml`…): "
+    "relativas a la carpeta del plugin, que se indica al iniciar la sesión "
+    "(línea «[SEA] Rutas citadas…»).\n\n"
+)
+PACKAGE_DATA = ("manifest.yaml", "capabilities.yaml", "SPECIFICATION.md")
+
+
+def paths_command():
+    assert "'" not in PATHS_LINE
+    return f"printf '%s %s\\n' '{PATHS_LINE}' \"${{CLAUDE_PLUGIN_ROOT}}\""
+
+
+def plugin_skill(src):
+    """La Skill de adapters/skills con la nota de rutas del modo plugin."""
+    text = read_bytes(src).decode("utf-8")
+    assert text.count(SKILL_NOTE_REPO) == 1, f"{src}: falta la nota de rutas de generate_skills.py"
+    return text.replace(SKILL_NOTE_REPO, SKILL_NOTE_PLUGIN).encode("utf-8")
+
+
 def hooks_json(manifest):
     core = manifest["core_modules"]
     total = len(core)
     start_hooks = [{"type": "command", "command": core_command(i, total, p)} for i, p in enumerate(core, 1)]
+    start_hooks.append({"type": "command", "command": paths_command()})
     start_hooks.append({"type": "command", "command": py_command("session-start")})
     return {
         "description": "Senior Engineering Agent: núcleo por SessionStart (un hook por archivo de core/), "
@@ -260,7 +301,11 @@ def expected_files():
     files["scripts/sea-python.sh"] = LAUNCHER.encode("utf-8")
     files["icon.png"] = read_bytes("adapters/claude-code/icon.png")  # icono del plugin (directorio de plugins)
     for src in tree_files("adapters/skills"):
-        files["skills/" + src[len("adapters/skills/"):]] = read_bytes(src)
+        files["skills/" + src[len("adapters/skills/"):]] = plugin_skill(src) if src.endswith("/SKILL.md") else read_bytes(src)
+    for src in tree_files("modules"):
+        files[src] = read_bytes(src)
+    for src in PACKAGE_DATA:
+        files[src] = read_bytes(src)
     for src in tree_files("adapters/claude-code/agents"):
         files["agents/" + src[len("adapters/claude-code/agents/"):]] = read_bytes(src)
     for core_path in manifest["core_modules"]:

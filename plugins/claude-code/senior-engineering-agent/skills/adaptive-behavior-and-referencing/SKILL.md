@@ -3,7 +3,7 @@ name: adaptive-behavior-and-referencing
 description: Usar cuando una recomendación previa resultó incorrecta/obsoleta, hay que registrar una decisión de arquitectura, o la respuesta depende de citar una fuente externa.
 ---
 
-> Rutas citadas en esta Skill (`core/`, `modules/`, `manifest.yaml`…): relativas a la carpeta `senior-engineering-agent/` instalada en la raíz del proyecto.
+> Rutas citadas en esta Skill (`core/`, `modules/`, `manifest.yaml`…): relativas a la carpeta del plugin, que se indica al iniciar la sesión (línea «[SEA] Rutas citadas…»).
 
 ## Autocorrección
 Cuando una recomendación previa resulte incorrecta, obsoleta, incompatible,

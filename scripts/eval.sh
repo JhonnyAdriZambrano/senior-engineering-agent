@@ -4,7 +4,7 @@
 # Documentación oficial: https://code.claude.com/docs/en/plugin-evals
 #
 # Uso:
-#   bash scripts/eval.sh <smoke|regression|capability|regression-en|all> [--runs N] [--max-cost-usd USD] [--case GLOB] [--with-only] [--out DIR]
+#   bash scripts/eval.sh <smoke|regression|capability|regression-en|all> [--runs N] [--max-cost-usd USD] [--case GLOB] [--with-only] [--exclude-strict] [--out DIR]
 #
 #   smoke       casos con etiqueta `critical`, 3 corridas, sin línea base (--ablation none).
 #   regression  casos con etiqueta `regression` (todos), con línea base (--ablation with-without).
@@ -24,11 +24,16 @@
 #   --with-only solo el brazo CON plugin (`--ablation none`, sin W/OUT): mide una vez y a la mitad de coste cuando la línea base ya se conoce.
 #               Con `--ablation none` el evaluador cuenta también los graders `arm: with-only`; usa scripts/eval_summary.py para excluirlos.
 #   --max-cost-usd / EVAL_MAX_COST_USD   tope de coste estimado (defecto 20; sale con 2 y resultados parciales).
+#   --exclude-strict  evalúa una COPIA temporal del plugin sin los casos `strict-tools` que la concesión invalidaría (ver abajo);
+#               esos casos se miden aparte con --case <nombre>.
 #
 # Siempre: --model claude-sonnet-5-5 --trust-plugin --no-publish --json --scaffold --keep-temp.
 #   --scaffold: los casos preparan su workspace con setup.sh (scripts escritos en este repositorio).
-#   --allow-tools: unión de las herramientas no de solo lectura que listan los casos en `allowed_tools`
-#   (los graders `max: 0` sobre una herramienta no concedida pasarían sin comprobar nada).
+#   --allow-tools: unión de las herramientas no de solo lectura que listan los casos seleccionados (etiqueta y --case) en `allowed_tools`
+#   (los graders `max: 0` sobre una herramienta no concedida pasarían sin comprobar nada). La concesión vale para TODOS los casos de la
+#   corrida: un caso con la etiqueta `strict-tools` (conjunto cerrado a propósito, p. ej. cap-certeza-sin-ejecutar sin Bash) que recibiría
+#   una herramienta que no declara invalida la medición, así que el script ABORTA (auditoría M6, 1.2.3) salvo --exclude-strict. Cálculo:
+#   scripts/eval_grants.py.
 # Salida (no se versiona): tests/results/evals/<modo>-<fecha>/ con result.json, report.html y traces/.
 # Aviso: cada corrida es una llamada real al modelo con tus credenciales (consume plan o API).
 set -euo pipefail
@@ -37,13 +42,14 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PLUGIN="${ROOT}/plugins/claude-code/senior-engineering-agent"
 MODEL="claude-sonnet-5-5"
 MODE="${1:-}"; [ $# -gt 0 ] && shift
-RUNS=""; MAXCOST="${EVAL_MAX_COST_USD:-20}"; OUT=""; CASE=""; WITHONLY=0
+RUNS=""; MAXCOST="${EVAL_MAX_COST_USD:-20}"; OUT=""; CASE=""; WITHONLY=0; EXCLUDE_STRICT=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --runs) RUNS="$2"; shift ;;
     --max-cost-usd) MAXCOST="$2"; shift ;;
     --case) CASE="$2"; shift ;;
     --with-only) WITHONLY=1 ;;
+    --exclude-strict) EXCLUDE_STRICT=1 ;;
     --out) OUT="$2"; shift ;;
     *) echo "Argumento desconocido: $1" >&2; exit 2 ;;
   esac
@@ -55,7 +61,7 @@ case "${MODE}" in
   capability) TAGARGS=(--tag capability); ABL=with-without ;;
   regression-en) TAGARGS=(--tag regression-en); ABL=with-without; [ -n "${CASE}" ] || CASE="en-*" ;;
   all) TAGARGS=(); ABL=with-without ;;
-  *) echo "Uso: $0 <smoke|regression|capability|regression-en|all> [--runs N] [--max-cost-usd USD] [--case GLOB] [--with-only] [--out DIR]" >&2; exit 2 ;;
+  *) echo "Uso: $0 <smoke|regression|capability|regression-en|all> [--runs N] [--max-cost-usd USD] [--case GLOB] [--with-only] [--exclude-strict] [--out DIR]" >&2; exit 2 ;;
 esac
 [ "${WITHONLY}" -eq 0 ] || ABL=none
 [[ "${MAXCOST}" =~ ^[0-9]+([.][0-9]+)?$ ]] || { echo "--max-cost-usd debe ser un número (USD)." >&2; exit 2; }
@@ -85,36 +91,42 @@ if [ ${#MISSING[@]} -gt 0 ]; then
 fi
 "${PY[@]}" -m pytest --version >/dev/null 2>&1 || echo "AVISO: ${PY[*]} sin pytest; test-09-regresion no podrá ejecutar los tests del fixture (pip install pytest)." >&2
 
-# --- Herramientas a conceder: unión de las no de solo lectura que piden los casos ---
-# Con --case, solo los casos seleccionados (la concesión vale para TODOS los casos de la corrida: un caso sin Bash solo puede medirse así).
-mapfile -t GRANTS < <("${PY[@]}" - "$(native "${PLUGIN}")/evals" "${CASE}" <<'PY'
-import fnmatch, glob, os, re, sys
-READ_ONLY = {"Read","Glob","Grep","NotebookRead","Skill","AskUserQuestion","Agent","Task","TodoWrite","TaskCreate","TaskGet","TaskList","TaskUpdate","TaskStop"}
-found = set()
-for p in glob.glob(os.path.join(sys.argv[1], "*", "prompt.md")):
-    if sys.argv[2] and not fnmatch.fnmatch(os.path.basename(os.path.dirname(p)), sys.argv[2]):
-        continue
-    m = re.search(r"^allowed_tools:\s*\[(.*?)\]", open(p, encoding="utf-8").read(), re.M)
-    if m:
-        found |= {t.strip().strip("\"'") for t in m.group(1).split(",") if t.strip()} - READ_ONLY
-print("\n".join(sorted(found)))
-PY
-)
-# Python en Windows termina las líneas con CRLF; y `print("\n".join([]))` deja UN elemento vacío (sin herramientas que conceder): se descarta
-# para no pasar `--allow-tools ""` (hallado al medir cap-certeza-sin-ejecutar, que no concede nada).
-CLEAN=(); for g in "${GRANTS[@]}"; do g="${g//$'\r'/}"; [ -z "${g}" ] || CLEAN+=("${g}"); done
-GRANTS=("${CLEAN[@]+"${CLEAN[@]}"}")
+# --- Herramientas a conceder (scripts/eval_grants.py): unión de las no de solo lectura que piden los casos de la corrida ---
+GARGS=(); [ -z "${CASE}" ] || GARGS+=(--case "${CASE}"); [ ${#TAGARGS[@]} -eq 0 ] || GARGS+=("${TAGARGS[@]}")
+grants_json() { "${PY[@]}" "$(native "${ROOT}")/scripts/eval_grants.py" "$(native "${PLUGIN}")/evals" ${GARGS[@]+"${GARGS[@]}"} "$@"; }
+# Una lista del JSON, un elemento por línea (sin CR de Windows ni la línea vacía de una lista vacía).
+jlist() { "${PY[@]}" -c 'import json,sys; print("\n".join(json.load(sys.stdin)[sys.argv[1]]))' "$1" | tr -d '\r' | sed '/^$/d'; }
+G="$(grants_json)"
+mapfile -t CONFLICTS < <(printf '%s' "${G}" | jlist strict_conflicts)
+EXCLUDE=()
+if [ ${#CONFLICTS[@]} -gt 0 ]; then
+  if [ "${EXCLUDE_STRICT}" -eq 0 ]; then
+    echo "ABORTADO: la concesión de la corrida ($(printf '%s' "${G}" | jlist grants | paste -sd' ' -)) invalidaría los casos strict-tools: ${CONFLICTS[*]}." >&2
+    echo "  Mídelos aparte (bash scripts/eval.sh ${MODE} --case <nombre>) y repite esta corrida con --exclude-strict." >&2
+    exit 2
+  fi
+  EXCLUDE=("${CONFLICTS[@]}")
+  EXARGS=(); for c in "${EXCLUDE[@]}"; do EXARGS+=(--exclude "${c}"); done
+  G="$(grants_json "${EXARGS[@]}")"
+  echo "Excluidos de esta corrida (strict-tools; mídelos con --case): ${EXCLUDE[*]}"
+fi
+[ -n "$(printf '%s' "${G}" | jlist cases)" ] || { echo "ABORTADO: ningún caso seleccionado." >&2; exit 2; }
+mapfile -t GRANTS < <(printf '%s' "${G}" | jlist grants)
 
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 OUT="${OUT:-${ROOT}/tests/results/evals/${MODE}-${STAMP}}"
 mkdir -p "${OUT}"
 TARGET="${PLUGIN}"
-if [ "${MODE}" = "regression-en" ]; then
-  # Copia temporal del plugin con CLAUDE_PLUGIN_OPTION_LANGUAGE=en delante de los comandos de sea_hooks.py (ver la cabecera).
-  WORK="$(mktemp -d "${TMPDIR:-/tmp}/sea-en-XXXXXX")"
+if [ "${MODE}" = "regression-en" ] || [ ${#EXCLUDE[@]} -gt 0 ]; then
+  # Copia temporal del plugin: sin los casos excluidos y, en regression-en, con CLAUDE_PLUGIN_OPTION_LANGUAGE=en delante de los
+  # comandos de sea_hooks.py (ver la cabecera). El plugin original no se modifica.
+  WORK="$(mktemp -d "${TMPDIR:-/tmp}/sea-eval-XXXXXX")"
   cp -a "${PLUGIN}" "${WORK}/senior-engineering-agent"
   rm -rf "${WORK}/senior-engineering-agent/evals/results"
+  for c in ${EXCLUDE[@]+"${EXCLUDE[@]}"}; do rm -rf "${WORK}/senior-engineering-agent/evals/${c}"; done
   TARGET="$(native "${WORK}/senior-engineering-agent")"
+fi
+if [ "${MODE}" = "regression-en" ]; then
   "${PY[@]}" - "${TARGET}/hooks/hooks.json" <<'PY'
 import json, sys
 path = sys.argv[1]

@@ -25,7 +25,11 @@ See `SPECIFICATION.md` (Spanish) for the full architecture and the evidence-base
 - **To use the agent** (load it in Claude Code, Codex, Cursor, Gemini CLI, ChatGPT Projects or Gemini Gems): nothing besides the runtime itself — it is plain text
   (Markdown/YAML/TOML) that the runtime consumes directly. The Claude Code **plugin** needs **Claude Code ≥ v2.1.271** (it declares `userConfig.options`; older versions cannot load it) and
   Python 3.8+ for the hooks.
-- **To run the tests or rebuild the ZIP** (only if you modify the agent): Python 3.11+ with `pyyaml` (`pip install pyyaml --break-system-packages`) and the system utilities `zip`/`unzip`.
+- **Hooks of the manual installation** (`adapters/*/settings.hooks.json`, `hooks.json`) call `python3` directly; they do **not** use the plugin's launcher.
+  If `python3` does not run (on Windows it is often a Microsoft Store alias), change `python3` to `py -3` or `python` in the copied file. Without a working
+  interpreter those hooks do not run at all, so NN-08 does not ask (the plugin's launcher, instead, asks: fail-closed).
+- **To run the tests or rebuild the ZIP** (only if you modify the agent): Python 3.11+ with `pyyaml` (`pip install pyyaml --break-system-packages`), `git` and a
+  checkout of the repository (the ZIP only packs versioned files), and the system utilities `zip`/`unzip`.
   With Python 3.10 also install `tomli` so the TOML validation is not skipped.
 - **On Windows**: the Claude Code plugin runs its hooks with **Git Bash** (`plugins/claude-code/senior-engineering-agent/scripts/sea-python.sh` is a bash script). The repository ships a
   `.gitattributes` (`* text=auto eol=lf`) that forces LF line endings even with `core.autocrlf=true`; without it the `.sh` files would get CRLF and fail with "$'\r': command not found".
@@ -45,10 +49,10 @@ The repository itself is the marketplace (`.claude-plugin/marketplace.json`). In
 (On Claude Code 2.1.275 or later this also works in one step:
 `/plugin install senior-engineering-agent --marketplace JhonnyAdriZambrano/senior-engineering-agent`.)
 
-The plugin ships 7 Skills, 2 read-only subagents, the core (injected at session start by one `SessionStart` hook per `core/` file) and the deterministic hooks (`SessionStart`,
+The plugin ships 7 Skills, 2 subagents without write tools (read-only by instruction: the reviewer keeps `Bash` for `git diff`/`git log`), the core (injected at session start by one `SessionStart` hook per `core/` file) and the deterministic hooks (`SessionStart`,
 `PreToolUse` and `Stop`); you do not need to touch `CLAUDE.md` or copy anything. It is a **generated view** (`plugins/claude-code/senior-engineering-agent/`,
 `python3 scripts/generate_plugin.py`), not a second source of truth. The Python hooks go through a launcher that tries `python3`, `python` and `py -3` and forces UTF-8
-(`PYTHONUTF8=1`, `PYTHONIOENCODING=utf-8`); hooks read stdin as UTF-8 and emit ASCII JSON, and NN-08 asks for confirmation (fail-closed) if it cannot parse the command. Hooks of the same
+(`PYTHONUTF8=1`, `PYTHONIOENCODING=utf-8`); hooks read stdin as UTF-8 and emit ASCII JSON, and NN-08 asks for confirmation (fail-closed) if it cannot parse the command or no Python interpreter works. Hooks of the same
 event run in parallel and the documentation does not guarantee their order: each core part carries the header "[Núcleo SEA — parte X de 6 (orden canónico 00→05)]".
 Details and limits: `adapters/claude-code/CLAUDE.md`.
 
@@ -57,7 +61,7 @@ Details and limits: `adapters/claude-code/CLAUDE.md`.
 1. Copy the **whole** `senior-engineering-agent/` folder to the root of your repository.
 2. In your project's `CLAUDE.md`, add one line: `@senior-engineering-agent/adapters/claude-code/CLAUDE.md`
 3. Copy each folder of `adapters/skills/` to `.claude/skills/` in your project (`.claude/skills/<name>/SKILL.md`) so Claude Code loads them only when the task calls for it.
-4. Optional: copy `adapters/claude-code/agents/*.md` to `.claude/agents/` to enable the 2 read-only subagents (reviewer and bootstrap research).
+4. Optional: copy `adapters/claude-code/agents/*.md` to `.claude/agents/` to enable the 2 subagents without write tools (reviewer and bootstrap research; read-only by instruction, see above).
 5. Recommended: copy `adapters/claude-code/settings.hooks.json` to `.claude/settings.json` (or merge it) to enable the deterministic hooks: missing-knowledge notice at session start
    (`SessionStart`), mandatory confirmation of destructive operations (`PreToolUse`, on `Bash` and `PowerShell`) and a validation requirement at the end of the turn (`Stop`). Requires Python 3.8+.
 6. Copy `project-knowledge-templates/*.md` to your project root (removing `[Nombre del proyecto]` and filling them in), or let `project-knowledge-bootstrap` help you generate them after `/init`.
@@ -67,7 +71,7 @@ Details and limits: `adapters/claude-code/CLAUDE.md`.
 1. Copy the **whole** `senior-engineering-agent/` folder to your repository root (Codex has no import mechanism; the content must be copied verbatim).
 2. Copy the content of `adapters/codex/AGENTS.md` (from "Identidad" to the end, without the installation section) into your real `AGENTS.md`.
 3. Copy each folder of `adapters/skills/` to `.agents/skills/` in your project — Codex discovers them natively (so do Cursor and Gemini CLI).
-4. Optional: copy `adapters/codex/agents/*.toml` to `.codex/agents/` to enable the read-only subagents.
+4. Optional: copy `adapters/codex/agents/*.toml` to `.codex/agents/` to enable the subagents (`sandbox_mode = "read-only"`).
 5. Recommended: copy `adapters/codex/hooks.json` to `.codex/hooks.json` (deterministic hooks; in Codex destructive operations are blocked, because Codex cannot yet ask for confirmation from a hook).
 
 ### With Cursor, Gemini CLI, ChatGPT Projects or Gemini Gems
@@ -116,12 +120,15 @@ Label table (single source: `manifest.yaml > i18n`; the test suite checks it cov
 Behavior rules in a prompt are a request; the hooks below are code that runs regardless of what the model decides. Shared logic: `adapters/hooks/sea_hooks.py`.
 
 - **NN-08 — destructive operations (`PreToolUse`).** Before a shell command that can destroy work (forced `git push`, `git reset --hard`, `git clean -f`, `git checkout -- .`, `git branch -D`,
-  history rewrites, `rm -rf`, PowerShell `Remove-Item -Recurse -Force` and aliases), the hook requires explicit human confirmation (`ask`) where the runtime supports it, and blocks it (`deny`) where it
-  does not (Codex, Gemini CLI). **Fail-closed:** if the hook input cannot be read or parsed, it asks (or denies) instead of staying silent. Covers the `Bash` and `PowerShell` tools.
+  `git stash clear|drop`, history rewrites, recursive deletion with `rm -r`/`rm -rf`, `find -delete`, `rd /s`, PowerShell `Remove-Item -Recurse` and aliases), the hook requires explicit human
+  confirmation (`ask`) where the runtime supports it, and blocks it (`deny`) where it does not (Codex, Gemini CLI). Equivalent spellings are normalized first (`/usr/bin/git`, `git.exe`, global options
+  such as `git -C dir`, long options such as `--force`/`--recursive`). **Fail-closed:** if the hook input cannot be read or parsed, the shell command is missing or not text, or (plugin) no Python
+  interpreter works, it asks (or denies) instead of staying silent. Covers the `Bash` and `PowerShell` tools. It is an extra layer, not a sandbox: shell/git aliases, variables (`$GIT reset --hard`),
+  scripts and functions are not resolved, and quoted text is also matched (`echo "git reset --hard"` asks, on purpose).
 - **NN-06b — knowledge files are data, not orders (`SessionStart` + `Stop`).** At session start the hook checks `PROJECT_CONTEXT.md` / `ARCHITECTURE.md` / `DECISIONS.md` for lines shaped like an
   instruction addressed to the agent (heuristic) and reports them; at the end of the turn `Stop` blocks **once** if no assistant message pointed the embedded instruction out to the user.
 - **Stop — validate before finishing (`Stop`, Claude Code only).** If the turn edited files (Edit/Write/MultiEdit or shell edits such as `sed -i`, redirection, `tee`, PowerShell `Set-Content`) and there is
-  no evidence of validation (a test, build or lint command, or running an edited file or one that imports it) nor an explicit "I could not validate", it blocks **once** and asks to validate or say why not.
+  no evidence of validation **after the last edit** (a test, build or lint command, or running an edited file or one that imports it) nor an explicit "I could not validate", it blocks **once** and asks to validate or say why not.
   **Documentation exception (1.2.0):** if *all* edited files are `.md`, `.markdown`, `.txt`, `.rst` or `.adoc`, no validation is required; one unknown target or any other file type keeps the old behavior.
   Limit: the extension does not prove the content is documentation (a `.txt` a program reads as data still counts as documentation).
 - **Project-knowledge check at session start.** If `PROJECT_CONTEXT.md` / `ARCHITECTURE.md` are missing or still the template, the agent is told — only when the task works on that repository — to
@@ -176,7 +183,7 @@ Same limits apply (n = 3, one model, one execution).
 - **The normative core is Spanish.** `en` mode is a directive on top of it, not a translation of the core: a model may still occasionally echo a Spanish term; the test suite and the English evals
   (`regression-en`) measure this, they do not guarantee it.
 - **`options` raises the minimum version:** declaring a picker means Claude Code versions before v2.1.271 cannot load the plugin.
-- **Hooks are heuristic:** NN-06b detection and the Stop validation/edit criteria are pattern-based (documented limits in `sea_hooks.py`); NN-08 matches a fixed list of destructive commands.
+- **Hooks are heuristic:** NN-06b detection and the Stop validation/edit criteria are pattern-based (documented limits in `sea_hooks.py`); NN-08 matches a fixed list of destructive commands after normalizing git's path and global options (limits above and in `sea_hooks.py`).
 - **Stop exists only in Claude Code;** Codex, Cursor and Gemini CLI have no Stop equivalent here (pending verification against a primary source).
 - **Measurements are small:** n = 3 per case, one model, one execution each (see above).
 - See `SPECIFICATION.md` §6 and §7 for what is portable, adaptable or platform-dependent.
@@ -194,6 +201,8 @@ senior-engineering-agent/
 ├── PRIVACY.md                   privacy policy (linked from plugin.json)
 ├── SECURITY.md                  what counts as a vulnerability and how to report it privately
 ├── CONTRIBUTING.md              how to contribute: single source vs generated views, checks
+├── AGENTS.md                    instructions for agents developing THIS repository (not the adapter)
+├── CLAUDE.md                    Claude Code pointer to AGENTS.md (not the adapter)
 ├── manifest.yaml                identity, version, module index, i18n (languages, English role, label table)
 ├── capabilities.yaml            abstract capabilities -> per-runtime binding
 ├── .gitattributes               LF line endings (Windows portability)
@@ -212,8 +221,8 @@ senior-engineering-agent/
 │   ├── hooks/
 │   │   ├── sea_hooks.py         shared hook logic (Claude Code, Codex, Cursor, Gemini CLI)
 │   │   └── i18n.json            languages, English role and es->en labels (GENERATED from manifest.yaml > i18n)
-│   ├── claude-code/             CLAUDE.md + agents/ (2 read-only subagents) + settings.hooks.json
-│   ├── codex/                   AGENTS.md + hooks.json + agents/ (3 read-only subagents)
+│   ├── claude-code/             CLAUDE.md + agents/ (2 subagents, no write tools) + settings.hooks.json
+│   ├── codex/                   AGENTS.md + hooks.json + agents/ (3 subagents, sandbox read-only)
 │   ├── cursor/                  hooks.json + rules/ (alwaysApply rule with the compact core)
 │   ├── gemini-cli/              GEMINI.md + settings.hooks.json
 │   └── chatgpt-and-gems/        compressed instructions + attached files
@@ -261,6 +270,7 @@ senior-engineering-agent/
     ├── eval.sh                  automated evaluation with `claude plugin eval` (smoke|regression|capability|regression-en|all)
     ├── ablate_core.sh           core ablation: without core/02…05 over 11 cases (`completo|sin-02|sin-03|sin-04|sin-05`)
     ├── eval_report.py           report of an eval.sh run (WITH / W/OUT / Δ)
+    ├── eval_grants.py           tools eval.sh grants per run; refuses to invalidate strict-tools cases
     ├── eval_summary.py          per-case summary of one or more result.json (excludes `arm: with-only` graders; no model cost)
     ├── check_version_guard.py   CI version guard: if the plugin changed since the last `v*` tag, plugin.json.version must change
     ├── check_results.py         summarizes tests/results/ and the gate status (manual 1.0.0 benchmark)

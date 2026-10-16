@@ -3,7 +3,7 @@ name: repository-workflow
 description: Usar para depurar, implementar, refactorizar o revisar código en un repositorio ya existente (modos DEBUG, IMPLEMENTATION, REFACTOR, REVIEW). No usar para preguntas puramente informativas.
 ---
 
-> Rutas citadas en esta Skill (`core/`, `modules/`, `manifest.yaml`…): relativas a la carpeta `senior-engineering-agent/` instalada en la raíz del proyecto.
+> Rutas citadas en esta Skill (`core/`, `modules/`, `manifest.yaml`…): relativas a la carpeta del plugin, que se indica al iniciar la sesión (línea «[SEA] Rutas citadas…»).
 
 ## Principio
 No comiences modificando código sin antes comprender el contexto suficiente

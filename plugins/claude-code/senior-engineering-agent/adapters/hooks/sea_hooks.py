@@ -20,6 +20,9 @@ pre-tool — ante un comando de shell potencialmente destructivo (NN-08) exige
   sale en silencio: se emite "ask" (Claude Code, Cursor) o "deny" (Codex y Gemini CLI, que solo admiten deny; el mismo
   criterio que ante una operación destructiva) con el motivo «NN-08: no se pudo analizar el comando; revísalo antes de
   autorizar». Stop y session-start no cambian de criterio (sin entrada analizable: permitir / sin contexto).
+  Desde 1.2.3 (auditoría A1) también es fail-closed una herramienta de shell cuyo `tool_input` no es un objeto o cuyo comando falta
+  o no es texto, y el lanzador del plugin emite "ask" en pre-tool si no encuentra un intérprete de Python. Antes de comparar con
+  DESTRUCTIVE se normaliza el comando (normalize_command(): ruta y .exe de git, opciones globales); límites junto a esa función.
 Codificación (H-E7b-1/2): stdin se lee como bytes y se decodifica como UTF-8; stdout y stderr se reconfiguran a UTF-8;
   toda la salida JSON es ASCII puro (ensure_ascii=True), válida en cualquier codificación de la tubería. La salida de
   texto plano (SessionStart de Claude Code y Codex) sale en UTF-8 gracias a la reconfiguración.
@@ -98,17 +101,57 @@ _PS_R = r"(?<=\s)-r(?:e(?:c(?:u(?:r(?:se?)?)?)?)?)?(?![\w-])"
 _PS_F = r"(?<=\s)-fo(?:r(?:ce?)?)?(?![\w-])"
 _PS_REMOVE = rf"{_PS_CMD}[^\n;&|]*?{_PS_R}[^\n;&|]*?{_PS_F}|{_PS_CMD}[^\n;&|]*?{_PS_F}[^\n;&|]*?{_PS_R}"
 
-# (patrón, motivo en español, motivo en inglés)
+_PS_RECURSE_ONLY = rf"(?<!git\s){_PS_CMD}(?![^\n;&|]*{_PS_F})(?=[^\n;&|]*{_PS_R})"  # recursivo sin -Force; `git rm -r` no cuenta
+
+# rm: opción recursiva (-r, -R, --recursive) y de forzado (-f, --force) en cualquier orden y posición del segmento, sueltas o
+# combinadas (-rf, -vfr). `git rm` sin forzar no cuenta (solo quita archivos versionados, recuperables desde HEAD).
+_RM_R = r"\s(?:-[a-z]*r|--recursive\b)"
+_RM_F = r"\s(?:-[a-z]*f|--force\b)"
+_RM_FORCED = rf"(?<![\w-])rm(?=\s)(?=[^\n;&|]*{_RM_R})(?=[^\n;&|]*{_RM_F})"
+_RM_RECURSE_ONLY = rf"(?<![\w-])(?<!git\s)rm(?=\s)(?![^\n;&|]*{_RM_F})(?=[^\n;&|]*{_RM_R})"
+
+# git checkout / restore con la ruta «.», «:/» o «*» (todo el árbol). `git restore --staged` (o -S) solo toca el índice y no cuenta,
+# salvo que lleve también --worktree (o -W).
+_RESTORE_ALL = (r"\bgit\s+(?:checkout\b|restore\b(?:(?=[^\n;&|]*\s(?:--worktree|(?-i:-W))\b)|(?![^\n;&|]*\s(?:--staged|(?-i:-S))\b)))"
+                r"[^\n;&|]*?\s(?:--\s+)?(?:\.|:/|\*)(?=\s|$)")
+
+# (patrón, motivo en español, motivo en inglés). Las entradas añadidas en 1.2.3 (auditoría A1) van al final para que el orden de los
+# motivos de las anteriores no cambie.
 DESTRUCTIVE = [
     (r"\bgit\s+push\b[^\n;&|]*(\s--force(-with-lease|-if-includes)?\b|\s-[a-zA-Z]*f[a-zA-Z]*\b|\s\+\S+)", "push forzado", "forced push"),
     (r"\bgit\s+reset\b[^\n;&|]*\s--hard\b", "git reset --hard", "git reset --hard"),
-    (r"\bgit\s+clean\b[^\n;&|]*\s-[a-zA-Z]*f", "git clean -f (borra archivos no versionados)", "git clean -f (deletes untracked files)"),
-    (r"\bgit\s+(checkout|restore)\s+(--\s+)?\.(\s|$)", "descarta todos los cambios locales", "discards all local changes"),
+    (r"\bgit\s+clean\b[^\n;&|]*\s(?:-[a-zA-Z]*f|--force\b)", "git clean -f (borra archivos no versionados)", "git clean -f (deletes untracked files)"),
+    (_RESTORE_ALL, "descarta todos los cambios locales", "discards all local changes"),
     (r"\bgit\s+branch\b[^\n;&|]*\s(-D\b|--delete\s+--force\b|--force\s+--delete\b)", "borrado forzado de rama", "forced branch deletion"),
     (r"\bgit\s+(filter-branch|filter-repo)\b", "reescritura de historial", "history rewrite"),
-    (r"\brm\s+(-[a-zA-Z]*r[a-zA-Z]*f|-[a-zA-Z]*f[a-zA-Z]*r|-r\s+-f|-f\s+-r)\b", "borrado recursivo forzado", "forced recursive deletion"),
+    (_RM_FORCED, "borrado recursivo forzado", "forced recursive deletion"),
     (_PS_REMOVE, "borrado recursivo forzado (PowerShell)", "forced recursive deletion (PowerShell)"),
+    (r"\bgit\s+(?:checkout|switch)\b[^\n;&|]*\s(?:-[a-zA-Z]*f[a-zA-Z]*|--force|--discard-changes)(?=\s|$)",
+     "checkout forzado (descarta cambios locales)", "forced checkout (discards local changes)"),
+    (r"\bgit\s+stash\s+(?:clear|drop)\b", "descarta stashes", "discards stashes"),
+    (_RM_RECURSE_ONLY, "borrado recursivo", "recursive deletion"),
+    (_PS_RECURSE_ONLY, "borrado recursivo (PowerShell)", "recursive deletion (PowerShell)"),
+    (r"(?<![\w-])(?:rd|rmdir|del|erase)\b[^\n;&|]*\s/s\b", "borrado recursivo (cmd)", "recursive deletion (cmd)"),
+    (r"(?<![\w-])find\b[^\n;&|]*\s-delete\b", "borrado masivo (find -delete)", "mass deletion (find -delete)"),
 ]
+
+# --- Normalización previa (1.2.3, auditoría A1): los patrones se buscan en el comando tal cual y en esta forma normalizada, en la
+# que el ejecutable de git con ruta o con .exe (`/usr/bin/git`, `git.exe`, `"C:\Program Files\Git\bin\git.exe"`) pasa a `git` y
+# se quitan las opciones globales de git anteriores al subcomando (`-C ruta`, `-c clave=valor`, `--git-dir=…`, `--no-pager`…), de
+# modo que `git -C . reset --hard` se trata como `git reset --hard`.
+# Límites conocidos (heurístico, sin analizar la shell): no se resuelven alias de shell o de git, variables (`$GIT reset --hard`),
+# funciones ni scripts; el texto entre comillas también se analiza, así que `echo "git reset --hard"` pide confirmación (falso
+# positivo deliberado: `bash -c "…"`, `eval` o `Invoke-Expression` sí ejecutan ese texto). NN-08 es una defensa adicional y no
+# sustituye los permisos ni el sandbox del runtime.
+_GIT_EXE = re.compile(r"""["'][^"'\n]*[\\/]git(?:\.exe)?["']|(?<![\w.-])(?:[\w.:~-]*[\\/])+git(?:\.exe)?(?=\s)|(?<![\w.\\/-])git\.exe(?=\s)""", re.I)
+_GIT_GLOBAL_OPT = (r"""(?:-C|-c|--git-dir|--work-tree|--namespace|--config-env|--super-prefix)(?:=|\s+)(?:"[^"\n]*"|'[^'\n]*'|\S+)"""
+                   r"|--exec-path(?:=\S+)?|--no-pager|--paginate|-[pP]|--bare|--no-replace-objects|--no-optional-locks|--no-lazy-fetch"
+                   r"|--(?:literal|glob|noglob|icase)-pathspecs")
+_GIT_GLOBALS = re.compile(rf"(?<![\w.-])git(?:\s+(?:{_GIT_GLOBAL_OPT}))+(?=\s)")
+
+
+def normalize_command(command):
+    return _GIT_GLOBALS.sub("git", _GIT_EXE.sub("git", command))
 SHELL_TOOLS = {"Bash", "PowerShell", "Shell", "run_shell_command"}  # PowerShell: herramienta nativa de Claude Code (tool_input.command)
 
 
@@ -390,22 +433,31 @@ def session_start(runtime, data):
 
 # --------------------------------------------------------------- pre-tool
 def shell_command(runtime, data):
+    """El comando de shell a analizar; "" si la herramienta no es de shell; None si lo es pero `tool_input` no es un objeto o el
+    comando falta o no es texto (1.2.3, auditoría A1: fail-closed, como una entrada que no se puede analizar)."""
     if runtime == "cursor":  # beforeShellExecution
-        return str(data.get("command", ""))
-    if data.get("tool_name") not in SHELL_TOOLS:
-        return ""
-    ti = data.get("tool_input") or {}
-    cmd = ti.get("command")
-    if cmd is None and runtime == "gemini-cli":  # nombre del argumento no confirmado en la documentación
-        cmd = next((v for v in ti.values() if isinstance(v, str)), "")
-    return str(cmd or "")
+        cmd = data.get("command")
+    else:
+        if data.get("tool_name") not in SHELL_TOOLS:
+            return ""
+        ti = data.get("tool_input")
+        if not isinstance(ti, dict):
+            return None
+        cmd = ti.get("command")
+        if cmd is None and runtime == "gemini-cli":  # nombre del argumento no confirmado en la documentación
+            cmd = next((v for v in ti.values() if isinstance(v, str)), None)
+    return cmd if isinstance(cmd, str) else None
 
 
 def pre_tool(runtime, data):
     command = shell_command(runtime, data)
+    if command is None:
+        pre_tool_unparsed(runtime)
+        return
     lang = resolve_language(runtime)
     wi = 1 if lang == "es" else 2
-    reasons = [entry[wi] for entry in DESTRUCTIVE if re.search(entry[0], command, re.I)]
+    forms = (command, normalize_command(command))
+    reasons = [entry[wi] for entry in DESTRUCTIVE if any(re.search(entry[0], c, re.I) for c in forms)]
     if not reasons:
         return
     what = ", ".join(reasons)
@@ -442,8 +494,9 @@ EDIT_TOOLS = {"Edit", "Write", "MultiEdit"}
 # --- Validación por herramienta (criterio exacto): un segmento del comando (separado por ; & | o salto de línea) cuyo
 # PROGRAMA, tras quitar envoltorios (env, time, sudo, uv/poetry/pipenv run, npx, pnpm exec, python -m …), es una
 # herramienta de test, build o lint; no basta con nombrarla como argumento (`cat pytest.ini`, `pip install pytest`
-# no cuentan). Además cuenta un intérprete que ejecuta un script de pruebas (test_*.py, *_test.py, run_tests.sh) y
-# cualquier segmento con la opción `--check`.
+# no cuentan). Además cuenta un intérprete que ejecuta un script de pruebas (test_*.py, *_test.py, run_tests.sh) y un
+# segmento con la opción `--check` cuyo programa es un intérprete (un script con --check) o una herramienta de
+# _CHECK_PROGRAMS (1.2.3, auditoría M1: `echo --check` o `git status --check` ya no cuentan).
 VALIDATION_PROGRAM = re.compile(
     r"(?:pytest|unittest|jest|vitest|mocha|tox|nox|rspec|phpunit|tsc|eslint|ruff|flake8|pylint|mypy|pyright|shellcheck"
     r"|cargo\s+(?:test|build|check|clippy)|go\s+(?:test|build|vet)"
@@ -455,6 +508,9 @@ _TEST_SCRIPT = re.compile(r"^(?:test_\w+\.py|\w+_test\.py|run_tests\.sh)$")
 _WRAPPERS = {"env", "time", "sudo", "exec", "command", "nohup", "npx", "bunx", "xvfb-run"}
 _RUNNERS = {("uv", "run"), ("poetry", "run"), ("pipenv", "run"), ("pnpm", "exec"), ("yarn", "exec"), ("bundle", "exec"), ("hatch", "run")}
 _SCRIPT_INTERPRETER = re.compile(r"^(?:python[\d.]*|py|node|bash|sh|ruby|php|perl)$")
+_CHECK_PROGRAMS = {"black", "isort", "ruff", "prettier", "cargo", "terraform", "tofu", "rustfmt", "gofmt", "clang-format", "shfmt", "stylua",
+                   "deno", "biome", "dprint", "pre-commit", "mix", "dotnet", "npm", "yarn", "pnpm", "bun", "make", "nox", "tox", "sqlfluff"}
+_CHECK_OPT = re.compile(r"\s--check(?:=|\s|$)")
 
 
 def _command_tokens(seg):
@@ -479,12 +535,12 @@ def _command_tokens(seg):
 
 def is_validation_command(command):
     for seg in re.split(r"[;&|\n]+", str(command)):
-        if re.search(r"\s--check\b", seg):
-            return True
         toks = _command_tokens(seg)
         if not toks:
             continue
-        head = os.path.basename(toks[0])
+        head = re.sub(r"\.exe$", "", os.path.basename(toks[0]), flags=re.I)
+        if _CHECK_OPT.search(seg) and (head in _CHECK_PROGRAMS or _SCRIPT_INTERPRETER.match(head)):
+            return True
         if _SCRIPT_INTERPRETER.match(head):
             args = toks[1:]
             if len(args) >= 2 and args[0] == "-m":  # python -m pytest, python -m unittest …
@@ -586,7 +642,8 @@ def _ps_target(args):
 # --- Validación por ejecución (criterio exacto): un segmento del comando (separado por ; & | o salto de línea)
 # invoca un intérprete (python*, py, node, deno, bun, tsx, ts-node, ruby, php, perl, bash, sh) o un script por
 # ruta (./x, dir/x) con un archivo F como primer argumento no-opción (o `-m paquete.modulo`), y
-#   (a) F es un archivo editado en el turno (misma ruta o mismo nombre de base), o
+#   (a) F es un archivo editado en el turno: misma ruta canónica, con las rutas relativas resueltas desde la raíz del
+#       proyecto (1.2.3, auditoría M1: ya no basta el mismo nombre de base; `python tests/a.py` no valida `src/a.py`), o
 #   (b) F existe en disco y alcanza un archivo editado por sus importaciones (Python: import/from … import;
 #       JS: require/import de rutas relativas), de forma transitiva hasta profundidad 3 (p. ej. `python main.py`
 #       tras editar app/calc.py, que main.py importa).
@@ -635,9 +692,13 @@ def _norm(path):
     return p[2:] if p.startswith("./") else p
 
 
-def _same_file(a, b):
-    na, nb = _norm(a), _norm(b)
-    return na == nb or na.endswith("/" + nb) or nb.endswith("/" + na) or os.path.basename(na) == os.path.basename(nb)
+def _canon(path, root):
+    p = str(path).strip()
+    return os.path.normcase(os.path.normpath(p if os.path.isabs(p) else os.path.join(root, p)))
+
+
+def _same_file(a, b, root):
+    return bool(str(a).strip()) and bool(str(b).strip()) and _canon(a, root) == _canon(b, root)
 
 
 def _imports_of(path, root):
@@ -669,14 +730,14 @@ def _imports_of(path, root):
 def runs_edited_code(command, edited, root):
     """True si el comando ejecuta un archivo editado o uno que lo alcanza por importaciones (profundidad ≤ 3)."""
     for f in executed_files(command):
-        if any(_same_file(f, e) for e in edited):
+        if any(_same_file(f, e, root) for e in edited):
             return True
         seen, frontier = {_norm(f)}, [_norm(f)]
         for _ in range(3):
             nxt = []
             for cur in frontier:
                 for imp in _imports_of(cur, root):
-                    if any(_same_file(imp, e) for e in edited):
+                    if any(_same_file(imp, e, root) for e in edited):
                         return True
                     if _norm(imp) not in seen:
                         seen.add(_norm(imp))
@@ -712,7 +773,10 @@ def turn_evidence(entries, root=None):
 
 def turn_scan(entries, root=None):
     """Devuelve (hubo_edicion, hubo_validacion, texto_del_asistente, destinos) del último turno; `destinos` incluye '?' y rutas
-    vacías (destino desconocido) para que is_docs_only() no los dé por documentación."""
+    vacías (destino desconocido) para que is_docs_only() no los dé por documentación.
+    Orden (1.2.3, auditoría M1): solo cuenta una validación posterior a la última edición o en el mismo comando que la hace
+    (`sed -i … && pytest`); un `pytest` anterior a la última edición ya no basta. Límites: el resultado del comando (salida,
+    código, is_error) no se mira, y dentro de un mismo comando no se distingue `pytest; sed -i …` de `sed -i …; pytest`."""
     root = root or os.getcwd()
     start = 0
     for i, e in enumerate(entries):  # el turno empieza en el último mensaje real del usuario
@@ -722,6 +786,7 @@ def turn_scan(entries, root=None):
                 start = i
     edited_files, commands, texts, targets_all = [], [], [], []
     edited = False
+    order, last_edit = 0, -1
     for e in entries[start + 1:]:
         if e.get("type") != "assistant":
             continue
@@ -729,21 +794,22 @@ def turn_scan(entries, root=None):
             if b.get("type") == "text":
                 texts.append(str(b.get("text", "")))
             elif b.get("type") == "tool_use":
+                order += 1
                 inp = b.get("input") or {}
                 if b.get("name") in EDIT_TOOLS:
-                    edited = True
+                    edited, last_edit = True, order
                     edited_files.append(str(inp.get("file_path", "")))
                     targets_all.append(str(inp.get("file_path", "")) or "?")
                 elif b.get("name") in SHELL_TOOLS:
                     cmd = str(inp.get("command", ""))
-                    commands.append(cmd)
+                    commands.append((order, cmd))
                     targets = bash_edit_targets(cmd)
                     if targets:
-                        edited = True
+                        edited, last_edit = True, order
                         edited_files += [t for t in targets if t != "?"]
                         targets_all += targets
     edited_files = [f for f in edited_files if f]
-    validated = any(is_validation_command(c) or runs_edited_code(c, edited_files, root) for c in commands)
+    validated = any(n >= last_edit and (is_validation_command(c) or runs_edited_code(c, edited_files, root)) for n, c in commands)
     return edited, validated, "\n".join(texts), targets_all
 
 

@@ -13,9 +13,16 @@ Projects y Gemini Gems sin reescribir el comportamiento en cada plataforma.
 - **Para usar el agente** (cargarlo en Claude Code, Codex, Cursor, Gemini
   CLI, ChatGPT Projects o Gemini Gems): ninguno además del runtime mismo —
   es texto plano (Markdown/YAML/TOML) que ese runtime consume directamente.
+- **Hooks de la instalación manual** (`adapters/*/settings.hooks.json`,
+  `hooks.json`): llaman directamente a `python3`, **sin** el lanzador del
+  plugin. Si `python3` no ejecuta nada (en Windows suele ser un alias de la
+  Microsoft Store), cambia `python3` por `py -3` o `python` en el archivo
+  copiado. Sin un intérprete que funcione esos hooks no se ejecutan y NN-08
+  no pregunta (el lanzador del plugin, en cambio, pide confirmación).
 - **Para correr los tests o regenerar el ZIP** (solo necesario si vas a
   modificar el agente, no para usarlo): Python 3.11+ con `pyyaml`
-  (`pip install pyyaml --break-system-packages`), y las utilidades de
+  (`pip install pyyaml --break-system-packages`), `git` y un checkout del
+  repositorio (el ZIP solo empaqueta archivos versionados), y las utilidades de
   sistema `zip`/`unzip`. Con Python 3.10, instala también `tomli` para no
   omitir la validación TOML.
 - **En Windows**: el plugin de Claude Code ejecuta sus hooks con **Git Bash**
@@ -61,6 +68,8 @@ senior-engineering-agent/
 ├── PRIVACY.md                   política de privacidad (enlazada desde plugin.json)
 ├── SECURITY.md                  qué es una vulnerabilidad y cómo reportarla en privado (inglés)
 ├── CONTRIBUTING.md              cómo contribuir: fuente única frente a vistas generadas (inglés)
+├── AGENTS.md                    instrucciones para agentes que desarrollan ESTE repositorio (no es el adaptador)
+├── CLAUDE.md                    puntero de Claude Code a AGENTS.md (no es el adaptador)
 ├── manifest.yaml                identidad, versión, índice de módulos
 ├── capabilities.yaml            capacidades abstractas → binding por runtime
 ├── .gitattributes               fin de línea LF (portabilidad en Windows)
@@ -80,7 +89,7 @@ senior-engineering-agent/
 │   ├── hooks/
 │   │   ├── sea_hooks.py         lógica común de los hooks (Claude Code, Codex, Cursor, Gemini CLI)
 │   │   └── i18n.json            idiomas, rol en inglés y etiquetas es→en (GENERADO desde manifest.yaml > i18n)
-│   ├── claude-code/             CLAUDE.md + agents/ (2 Subagents de solo lectura)
+│   ├── claude-code/             CLAUDE.md + agents/ (2 Subagents sin herramientas de escritura)
 │   │                            + settings.hooks.json (hooks SessionStart, PreToolUse y Stop)
 │   ├── codex/                   AGENTS.md + hooks.json + agents/ (3 Subagents de solo lectura;
 │   │                            el explorador, sin medir)
@@ -131,6 +140,7 @@ senior-engineering-agent/
     ├── eval.sh                  evaluación automatizada con `claude plugin eval` (smoke|regression|capability|all)
     ├── ablate_core.sh           ablación del núcleo: sin core/02…05 sobre 11 casos (`completo|sin-02|sin-03|sin-04|sin-05`)
     ├── eval_report.py           informe de una corrida de eval.sh (WITH / W/OUT / Δ)
+    ├── eval_grants.py           herramientas que concede eval.sh; no invalida los casos strict-tools
     ├── eval_summary.py          resumen por caso de uno o varios result.json (excluye graders `arm: with-only`; sin coste de modelo)
     ├── check_version_guard.py   guarda de versión de la CI: si el plugin cambió desde la última etiqueta `v*`, plugin.json.version debe cambiar
     ├── check_results.py         resume tests/results/ y el estado de la puerta (benchmark manual de 1.0.0)
@@ -161,14 +171,14 @@ marketplace (`.claude-plugin/marketplace.json`). Dentro de Claude Code:
 
 (En Claude Code 2.1.275 o posterior también sirve, en un solo paso:
 `/plugin install senior-engineering-agent --marketplace JhonnyAdriZambrano/senior-engineering-agent`.)
-El plugin trae las 7 Skills, los 2 Subagents de solo lectura, el núcleo
+El plugin trae las 7 Skills, los 2 Subagents sin herramientas de escritura (de solo lectura por instrucción: el revisor conserva `Bash` para `git diff`/`git log`), el núcleo
 (inyectado al iniciar la sesión por un hook `SessionStart` por cada archivo de
 `core/`) y los hooks deterministas (`SessionStart`, `PreToolUse` y `Stop`); no hace
 falta tocar `CLAUDE.md` ni copiar nada. Es una **vista generada** (`plugins/claude-code/senior-engineering-agent/`,
 `python3 scripts/generate_plugin.py`), no una segunda fuente de verdad. Los
 hooks de Python usan un lanzador que prueba `python3`, `python` y `py -3`
 y fuerza UTF-8 (`PYTHONUTF8=1`, `PYTHONIOENCODING=utf-8`); los hooks leen stdin como UTF-8 y
-emiten JSON ASCII, y NN-08 pide confirmación (fail-closed) si no puede analizar el comando.
+emiten JSON ASCII, y NN-08 pide confirmación (fail-closed) si no puede analizar el comando o no hay un intérprete de Python que funcione.
 En Windows se recomienda Git Bash para los hooks. Los hooks de un mismo evento
 corren en paralelo y la documentación no garantiza su orden: cada parte del
 núcleo lleva la cabecera «[Núcleo SEA — parte X de 6 (orden canónico 00→05)]».
@@ -204,7 +214,7 @@ proyecto).
    proyecto (`.claude/skills/<nombre>/SKILL.md`) para que Claude Code las
    cargue solo cuando la tarea lo amerite.
 4. Opcional: copia `adapters/claude-code/agents/*.md` a `.claude/agents/`
-   para habilitar los 2 Subagents de solo lectura (revisor e investigación
+   para habilitar los 2 Subagents sin herramientas de escritura (revisor e investigación
    de bootstrap; el explorador se retiró: no se midió un beneficio frente al modelo solo).
 5. Recomendado: copia `adapters/claude-code/settings.hooks.json` a
    `.claude/settings.json` (o fusiónalo) para activar los hooks
@@ -265,6 +275,12 @@ mínimas y checklist para construir un adaptador nuevo sin tocar `core/`.
 - Este agente no anula políticas de seguridad/aprobación nativas de la
   plataforma donde corre — es un piso de comportamiento adicional, no un
   techo que las sustituye.
+- Los hooks son heurísticos. NN-08 compara con una lista fija de operaciones
+  destructivas tras normalizar la ruta y las opciones globales de git
+  (`/usr/bin/git`, `git.exe`, `git -C dir`) y las opciones largas; no resuelve
+  alias de shell o de git, variables (`$GIT reset --hard`), funciones ni
+  scripts, y también analiza el texto entre comillas (`echo "git reset --hard"`
+  pide confirmación a propósito). Es una capa adicional, no un sandbox.
 - Ver `SPECIFICATION.md §6` y `§7` para el detalle completo de qué es
   portable, qué es adaptable y qué depende fuertemente de una plataforma.
 
@@ -362,8 +378,14 @@ runtimes. La CI (`.github/workflows/structural-tests.yml`) ejecuta en cada
 push y pull request a `main`, en Linux y en Windows, la suite estructural, la
 aceptación práctica de hooks (`tests/acceptance/hooks_practice.sh`) y, en Linux,
 las comprobaciones `--check` de las vistas derivadas, sin secretos ni llamadas a modelos; el
-benchmark de comportamiento se automatiza con `scripts/eval.sh` (requiere una cuenta de Claude Code, por eso no corre en la CI; ver `tests/GUIA_BENCHMARK.md`). Este proyecto en sí no requiere
-variables de entorno propias.
+benchmark de comportamiento se automatiza con `scripts/eval.sh` (requiere una cuenta de Claude Code, por eso no corre en la CI; ver `tests/GUIA_BENCHMARK.md`). Este proyecto no necesita credenciales
+ni un archivo `.env` para las comprobaciones estructurales. Variables
+opcionales: `SEA_LANGUAGE` (idioma de los hooks fuera del plugin; ver
+«Idioma»), `EVAL_MAX_COST_USD` y `ABLATE_MAX_COST_USD` (tope de coste de
+`scripts/eval.sh` y `scripts/ablate_core.sh`; el argumento `--max-cost-usd`
+tiene prioridad), `DIST_DIR` y `SOURCE_DATE_EPOCH` (carpeta de salida y fecha
+fija de `scripts/build_zip.sh`). Las que aporta cada runtime
+(`CLAUDE_PROJECT_DIR`, `CLAUDE_PLUGIN_ROOT`…) no las defines tú.
 
 ## Autoría
 
