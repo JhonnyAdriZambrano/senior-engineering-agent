@@ -258,7 +258,8 @@ senior-engineering-agent/
 │       │       └── README.md    what is automated and criterion -> grader
 │       └── senior-engineering-agent-lite/  GENERATED content-only edition for the Claude plugin directory (no hooks, scripts or subagents)
 │           ├── .claude-plugin/
-│           │   └── plugin.json  name, version and listing fields (no userConfig, no icon)
+│           │   ├── plugin.json  name, version and listing fields (no userConfig, no icon field)
+│           │   └── icon.png     listing icon at the directory's default path
 │           ├── output-styles/
 │           │   └── senior-engineering-agent.md  core/00-05 as an output style (force-for-plugin)
 │           ├── core/            copy of core/00-05

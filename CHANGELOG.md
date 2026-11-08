@@ -46,7 +46,8 @@ completo depende de sus hooks, así que se mantiene tal cual para el marketplace
   - Las 7 Skills, con la nota de rutas basada en `${CLAUDE_PLUGIN_ROOT}`; además `core/`, `modules/`, `manifest.yaml`, `capabilities.yaml`,
     `SPECIFICATION.md`, `project-knowledge-templates/`, `README.md`, `LICENSE` y `NOTICE`.
   - No incluye hooks, scripts, subagentes (su frontmatter `tools`/`skills`/`model` es la causa más probable de `LOCAL_CODE_FRONTMATTER_KEY`),
-    `userConfig` ni `icon` (el icono del listing se sube en el portal).
+    `userConfig` ni el campo `icon`: el icono va en `.claude-plugin/icon.png`, la ruta por defecto, que el directorio toma como icono del
+    listing solo la primera vez que el plugin se guarda o envía en el portal.
 - Segunda entrada en `.claude-plugin/marketplace.json`: `senior-engineering-agent-lite`, con el aviso de no instalarla junto al plugin completo.
 - Pruebas: ningún hook, `agents/`, `scripts/` ni `evals/`; tipos de archivo admitidos en UTF-8, sin `#!` ni NUL; frontmatter de las Skills
   limitado a `name` y `description`; claves exactas del estilo; núcleo íntegro y en orden dentro del estilo; rutas citadas que existen; README; entrada del marketplace.

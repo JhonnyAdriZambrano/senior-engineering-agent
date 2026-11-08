@@ -35,7 +35,8 @@ Variante «lite» (desde 1.3.0) en plugins/claude-code/senior-engineering-agent-
 directorio de plugins de Claude: su política solo admite de organizaciones no verificadas
 contenido sin hooks, sin scripts (nada fuera de Markdown/texto/JSON/YAML/imagen, nada con #!)
 y con frontmatter mínimo. Lleva:
-  .claude-plugin/plugin.json   sin userConfig ni icon (el icono del listing se sube en el portal)
+  .claude-plugin/plugin.json   sin userConfig ni campo icon
+  .claude-plugin/icon.png      icono en la ruta por defecto que lee el directorio
   output-styles/senior-engineering-agent.md
                                el núcleo core/00–05 completo como estilo de salida con
                                force-for-plugin (se aplica al activar el plugin), más una
@@ -494,6 +495,9 @@ def expected_lite_files():
     manifest = load_manifest()
     files = {}
     files[".claude-plugin/plugin.json"] = dump_json(lite_plugin_json(manifest))
+    # Ruta por defecto que lee el directorio (sin campo «icon» en plugin.json, que dejaba el PNG «referenciado» y retenía la revisión).
+    # El directorio solo la toma como icono del listing la primera vez que el plugin se guarda o envía en el portal.
+    files[".claude-plugin/icon.png"] = read_bytes("adapters/claude-code/icon.png")
     files[LITE_STYLE] = lite_style(manifest).encode("utf-8")
     for src in tree_files("adapters/skills"):
         files["skills/" + src[len("adapters/skills/"):]] = lite_skill(src) if src.endswith("/SKILL.md") else read_bytes(src)

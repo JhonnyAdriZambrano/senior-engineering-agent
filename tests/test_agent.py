@@ -1603,9 +1603,13 @@ _lite_top = {f.split("/", 1)[0] for f in _lite_files}
 check("Lite: sin hooks/, agents/, scripts/, adapters/ ni evals/ (política del directorio)",
       not _lite_top & {"hooks", "agents", "scripts", "adapters", "evals", "commands", "bin"}, str(sorted(_lite_top)))
 _LITE_EXT = (".md", ".txt", ".json", ".yaml", ".yml")
-_lite_bad_type = [f for f in _lite_files if not f.endswith(_LITE_EXT) and f not in ("LICENSE", "NOTICE")]
+_LITE_ICON = ".claude-plugin/icon.png"  # ruta por defecto del icono del listing; único binario admitido
+_lite_bad_type = [f for f in _lite_files if not f.endswith(_LITE_EXT) and f not in ("LICENSE", "NOTICE", _LITE_ICON)]
+check("Lite: .claude-plugin/icon.png es el icono del plugin completo (PNG cuadrado), sin campo «icon» en plugin.json",
+      _LITE_ICON in _lite_files and open(os.path.join(LITE, _LITE_ICON), "rb").read() == open(os.path.join(ROOT, "adapters", "claude-code", "icon.png"), "rb").read()
+      and "icon" not in (lpj or {}), "falta o difiere")
 _lite_bad_content = []
-for _f in _lite_files:
+for _f in (f for f in _lite_files if f != _LITE_ICON):
     _b = open(os.path.join(LITE, _f), "rb").read()
     try:
         _b.decode("utf-8")
