@@ -11,6 +11,13 @@
       "description": "Senior Software Engineer and Senior IT Architect: core loaded by SessionStart hooks, language selector (es/en), 7 Skills, 2 subagents without write tools and deterministic hooks (NN-08, project knowledge, validation at stop). / Ingeniero de Software Senior y Arquitecto de TI Senior: núcleo por hooks SessionStart, selector de idioma (es/en), 7 Skills, 2 subagentes sin herramientas de escritura y hooks deterministas (NN-08, conocimiento del proyecto, validación al terminar).",
       "category": "development",
       "tags": ["engineering", "code-review", "architecture", "security"]
+    },
+    {
+      "name": "senior-engineering-agent-lite",
+      "source": "./plugins/claude-code/senior-engineering-agent-lite",
+      "description": "Content-only edition (the one submitted to the Claude plugin directory): core as an output style applied automatically, 7 Skills; no hooks, scripts or subagents. Do not install together with the full plugin. / Edición solo de contenido (la enviada al directorio de plugins de Claude): núcleo como estilo de salida aplicado automáticamente, 7 Skills; sin hooks, scripts ni subagentes. No la instales junto al plugin completo.",
+      "category": "development",
+      "tags": ["engineering", "code-review", "architecture", "security"]
     }
   ]
 }

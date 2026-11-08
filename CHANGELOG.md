@@ -24,7 +24,48 @@ Las entradas anteriores a 1.2.2 conservan el detalle de proceso (identificadores
 cambios de comportamiento. La etiqueta `1.0.0` se asignó el 2026-10-09 al
 cumplirse la *Puerta de salida hacia 1.0.0* (más abajo).
 
-## [1.2.3] — sin publicar
+## [1.3.0] — sin publicar
+
+Versión MINOR: adaptador nuevo, la **edición lite** del plugin para el directorio de plugins de Claude. Incluye todo lo de 1.2.3, que no se
+etiquetó (abajo). La etiqueta `v1.3.0` la crea el propietario al cumplir la *Puerta de salida hacia 1.3.0*; este cambio no crea etiquetas.
+
+### Motivo
+
+El directorio rechazó 1.2.3 (`ab05e56`, 2026-11-08, «Directory policy refused»). A una organización que no es *Verified* le exige tres
+cosas: ningún hook, de ningún tipo (`LOCAL_CODE_HOOK_COMMAND`); solo archivos Markdown, de texto, JSON, YAML o imagen, y ninguno que empiece
+por `#!` (`LOCAL_CODE_FILE_TYPE`); y claves de frontmatter dentro de una lista que no es pública (`LOCAL_CODE_FRONTMATTER_KEY`). El plugin
+completo depende de sus hooks, así que se mantiene tal cual para el marketplace de GitHub, y el directorio recibe una variante aparte.
+
+### Añadido
+
+- `plugins/claude-code/senior-engineering-agent-lite/`, una vista generada por `scripts/generate_plugin.py` (con `--check`) que contiene solo Markdown, JSON y YAML:
+  - `output-styles/senior-engineering-agent.md`: el núcleo `core/00–05` completo como estilo de salida, con `force-for-plugin: true` (se aplica al
+    activar el plugin) y `keep-coding-instructions: true`. Una cabecera indica al modelo que haga él mismo lo que en la edición completa hacen los
+    hooks (confirmación antes de operaciones destructivas por NN-08, aviso de conocimiento del proyecto, validación al terminar) y que responda en
+    el idioma del usuario, con la tabla de etiquetas en inglés.
+  - Las 7 Skills, con la nota de rutas basada en `${CLAUDE_PLUGIN_ROOT}`; además `core/`, `modules/`, `manifest.yaml`, `capabilities.yaml`,
+    `SPECIFICATION.md`, `project-knowledge-templates/`, `README.md`, `LICENSE` y `NOTICE`.
+  - No incluye hooks, scripts, subagentes (su frontmatter `tools`/`skills`/`model` es la causa más probable de `LOCAL_CODE_FRONTMATTER_KEY`),
+    `userConfig` ni `icon` (el icono del listing se sube en el portal).
+- Segunda entrada en `.claude-plugin/marketplace.json`: `senior-engineering-agent-lite`, con el aviso de no instalarla junto al plugin completo.
+- Pruebas: ningún hook, `agents/`, `scripts/` ni `evals/`; tipos de archivo admitidos en UTF-8, sin `#!` ni NUL; frontmatter de las Skills
+  limitado a `name` y `description`; claves exactas del estilo; núcleo íntegro y en orden dentro del estilo; rutas citadas que existen; README; entrada del marketplace.
+
+### Cambiado
+
+- `scripts/check_version_guard.py` vigila las dos carpetas del plugin y exige que la lite declare la misma versión que el plugin completo.
+- El plugin completo no cambia, salvo la versión.
+
+### Puerta de salida hacia 1.3.0
+
+1. La puerta de 1.2.3 (abajo) sobre el commit que se vaya a etiquetar.
+2. `claude plugin validate --strict` de la variante lite e instalación limpia desde el marketplace (versión, estilo de salida presente).
+3. Sesión real con la lite: el estilo forzado se aplica sin seleccionarlo, el agente sigue el núcleo (rol, etiquetas) y pide confirmación antes de
+   un comando destructivo.
+4. Envío nuevo en el portal del directorio con la ruta de la lite y política del directorio superada (`Directory policy` sin bloqueos). Si rechaza
+   `force-for-plugin`, el plan B es quitarlo y que el usuario elija el estilo en `/output-style`.
+
+## [1.2.3] — sin publicar (no etiquetada; su contenido sale con 1.3.0)
 
 Versión PATCH de endurecimiento, en curso, a partir de una auditoría externa de 1.2.2 (hallazgos A1–A4, M1–M9, B1–B2). Esta entrada recoge lo hecho hasta
 ahora; la etiqueta `v1.2.3` la crea el propietario al cumplir la *Puerta de salida hacia 1.2.3* (más abajo). Este cambio no crea etiquetas.

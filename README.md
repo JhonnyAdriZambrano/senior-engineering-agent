@@ -56,6 +56,14 @@ The plugin ships 7 Skills, 2 subagents without write tools (read-only by instruc
 event run in parallel and the documentation does not guarantee their order: each core part carries the header "[Núcleo SEA — parte X de 6 (orden canónico 00→05)]".
 Details and limits: `adapters/claude-code/CLAUDE.md`.
 
+**Lite edition (Claude plugin directory, from 1.3.0).** `senior-engineering-agent-lite` holds only Markdown, JSON and YAML. That is
+the form the Claude plugin directory accepts from organizations that are not Verified. It delivers the full core as an output style
+that Claude Code applies automatically while the plugin is enabled (`force-for-plugin`), plus the 7 Skills. It has **no hooks, scripts
+or subagents**, so NN-08, the project-knowledge check and validation at stop are rules the model follows, not code. Install one
+edition or the other, not both:
+`/plugin install senior-engineering-agent-lite@senior-engineering-agent`. It is a generated view too
+(`plugins/claude-code/senior-engineering-agent-lite/`).
+
 **Alternative: manual copy** (no plugin; do not combine both in the same project).
 
 1. Copy the **whole** `senior-engineering-agent/` folder to the root of your repository.
@@ -228,26 +236,37 @@ senior-engineering-agent/
 │   └── chatgpt-and-gems/        compressed instructions + attached files
 ├── plugins/
 │   └── claude-code/
-│       └── senior-engineering-agent/   GENERATED Claude Code plugin (scripts/generate_plugin.py)
+│       ├── senior-engineering-agent/   GENERATED Claude Code plugin (scripts/generate_plugin.py)
+│       │   ├── .claude-plugin/
+│       │   │   └── plugin.json  name, version, keywords, icon and the language userConfig (from manifest.yaml)
+│       │   ├── icon.png         plugin icon (copy of adapters/claude-code/icon.png)
+│       │   ├── LICENSE          license copy
+│       │   ├── NOTICE           notice copy
+│       │   ├── core/            copy of core/00-05
+│       │   ├── skills/          copy of adapters/skills/
+│       │   ├── agents/          copy of adapters/claude-code/agents/
+│       │   ├── hooks/
+│       │   │   └── hooks.json   one SessionStart per core/ file, plus PreToolUse and Stop
+│       │   ├── adapters/
+│       │   │   └── hooks/
+│       │   │       ├── sea_hooks.py  same relative path as in the source
+│       │   │       └── i18n.json     copy of adapters/hooks/i18n.json
+│       │   ├── project-knowledge-templates/  templates the SessionStart hook needs
+│       │   ├── scripts/
+│       │   │   └── sea-python.sh  Python launcher (python3 | python | py -3)
+│       │   └── evals/           `claude plugin eval` cases (hand-written, versioned)
+│       │       └── README.md    what is automated and criterion -> grader
+│       └── senior-engineering-agent-lite/  GENERATED content-only edition for the Claude plugin directory (no hooks, scripts or subagents)
 │           ├── .claude-plugin/
-│           │   └── plugin.json  name, version, keywords, icon and the language userConfig (from manifest.yaml)
-│           ├── icon.png         plugin icon (copy of adapters/claude-code/icon.png)
-│           ├── LICENSE          license copy
-│           ├── NOTICE           notice copy
+│           │   └── plugin.json  name, version and listing fields (no userConfig, no icon)
+│           ├── output-styles/
+│           │   └── senior-engineering-agent.md  core/00-05 as an output style (force-for-plugin)
 │           ├── core/            copy of core/00-05
-│           ├── skills/          copy of adapters/skills/
-│           ├── agents/          copy of adapters/claude-code/agents/
-│           ├── hooks/
-│           │   └── hooks.json   one SessionStart per core/ file, plus PreToolUse and Stop
-│           ├── adapters/
-│           │   └── hooks/
-│           │       ├── sea_hooks.py  same relative path as in the source
-│           │       └── i18n.json     copy of adapters/hooks/i18n.json
-│           ├── project-knowledge-templates/  templates the SessionStart hook needs
-│           ├── scripts/
-│           │   └── sea-python.sh  Python launcher (python3 | python | py -3)
-│           └── evals/           `claude plugin eval` cases (hand-written, versioned)
-│               └── README.md    what is automated and criterion -> grader
+│           ├── skills/          copy of adapters/skills/ (paths via ${CLAUDE_PLUGIN_ROOT})
+│           ├── modules/         copy of modules/
+│           ├── project-knowledge-templates/  templates the project-knowledge-bootstrap Skill uses
+│           ├── LICENSE          license copy
+│           └── NOTICE           notice copy
 ├── project-knowledge-templates/ templates you copy into YOUR real project
 ├── docs/
 │   ├── ADDING_A_RUNTIME.md      contract for building a new adapter

@@ -1,0 +1,23 @@
+{
+  "name": "senior-engineering-agent-lite",
+  "displayName": "Senior Engineering Agent Lite",
+  "version": "1.3.0",
+  "description": "Content-only edition of the Senior Engineering Agent for the Claude plugin directory: the senior-engineering core applied as an output style when the plugin is enabled, plus 7 Skills. No hooks, scripts or subagents; for the deterministic guards (NN-08, validation at stop) install the full plugin from the GitHub marketplace. / Edición solo de contenido del Senior Engineering Agent para el directorio de plugins de Claude: el núcleo de ingeniería senior como estilo de salida que se aplica al activar el plugin, más 7 Skills. Sin hooks, scripts ni subagentes; para las guardas deterministas (NN-08, validación al terminar) instala el plugin completo desde el marketplace de GitHub.",
+  "author": {
+    "name": "Jhonny Adrian Zambrano Gonzalez"
+  },
+  "homepage": "https://github.com/JhonnyAdriZambrano/senior-engineering-agent",
+  "license": "Apache-2.0",
+  "repository": "https://github.com/JhonnyAdriZambrano/senior-engineering-agent",
+  "keywords": [
+    "engineering",
+    "code-review",
+    "architecture",
+    "security",
+    "claude-code",
+    "skills",
+    "output-style"
+  ],
+  "privacyPolicyUrl": "https://github.com/JhonnyAdriZambrano/senior-engineering-agent/blob/main/PRIVACY.md",
+  "supportUrl": "https://github.com/JhonnyAdriZambrano/senior-engineering-agent/issues"
+}

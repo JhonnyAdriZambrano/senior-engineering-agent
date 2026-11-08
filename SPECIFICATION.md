@@ -425,7 +425,8 @@ externo que ya no existe; las mitigaciones están en el núcleo
 
 ## 9. Próximos pasos
 
-Estado (versión 1.2.3): instalación como plugin de Claude Code
+Estado (versión 1.3.0): instalación como plugin de Claude Code (completo, y edición lite
+solo de contenido para el directorio de plugins de Claude)
 (vía principal) y documentada por runtime, Skills generadas y compartidas por
 Claude Code, Codex, Cursor y Gemini CLI, Subagents de solo lectura, tests
 estructurales, script de sandbox para el benchmark, núcleo compacto
