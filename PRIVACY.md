@@ -1,6 +1,6 @@
 # Privacy Policy — Senior Engineering Agent
 
-Last updated: 2026-10-11
+Last updated: 2026-11-08
 
 ## Summary
 
@@ -20,6 +20,14 @@ Paths below are relative to the plugin root (`plugins/claude-code/senior-enginee
 ## Local files
 
 The hooks write one small state file per session, named `sea-alerts-<session id>.json`. It contains only a list of `{"file": <name>, "line": <number>}` records (which of `PROJECT_CONTEXT.md`, `ARCHITECTURE.md` or `DECISIONS.md` had a suspicious line, and its line number) and a `blocked` true/false flag. It does not contain command text, transcript text or file contents. It is stored in the directory given by `CLAUDE_PLUGIN_DATA` when Claude Code provides one and it is writable, otherwise in the operating system's temporary directory. It is deleted when a later session start finds no alerts; otherwise it persists until you or the operating system clear those directories. It never leaves your machine. `scripts/sea-python.sh` writes no files, and the hooks create no logs and no files other than this one. Files that Claude creates or edits in your project while following the plugin's skills are written by Claude through its normal tools, subject to your permissions.
+
+## Lite edition
+
+The lite edition (`senior-engineering-agent-lite`, `plugins/claude-code/senior-engineering-agent-lite/`) contains only Markdown, JSON and YAML
+files and the plugin icon: an output style, Skills and reference documents. It has no hooks, scripts, subagents or MCP servers, so nothing in it
+runs on your machine, reads environment variables, or writes files of its own. Everything in "What runs on your machine" and "Local files" applies
+only to the full plugin. Files that Claude creates or edits while following the lite's instructions are written by Claude through its normal tools,
+subject to your permissions.
 
 ## Data processed by Claude
 
