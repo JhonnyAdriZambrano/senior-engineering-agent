@@ -24,10 +24,10 @@ Las entradas anteriores a 1.2.2 conservan el detalle de proceso (identificadores
 cambios de comportamiento. La etiqueta `1.0.0` se asignó el 2026-10-09 al
 cumplirse la *Puerta de salida hacia 1.0.0* (más abajo).
 
-## [1.3.0] — sin publicar
+## [1.3.0] — 2026-11-08
 
 Versión MINOR: adaptador nuevo, la **edición lite** del plugin para el directorio de plugins de Claude. Incluye todo lo de 1.2.3, que no se
-etiquetó (abajo). La etiqueta `v1.3.0` la crea el propietario al cumplir la *Puerta de salida hacia 1.3.0*; este cambio no crea etiquetas.
+etiquetó (abajo). Etiqueta `v1.3.0` asignada por decisión del propietario con un punto de la puerta pendiente (ver *Estado de la puerta hacia 1.3.0*).
 
 ### Motivo
 
@@ -66,7 +66,27 @@ completo depende de sus hooks, así que se mantiene tal cual para el marketplace
    un comando destructivo.
 4. Envío nuevo en el portal del directorio con la ruta de la lite y política del directorio superada (`Directory policy` sin bloqueos).
 
-## [1.2.3] — sin publicar (no etiquetada; su contenido sale con 1.3.0)
+### Estado de la puerta hacia 1.3.0
+
+Comprobado el 2026-11-08 sobre `37c69af` (`main`, fusión del PR #4):
+
+- **Punto 1 (puerta de 1.2.3):**
+  - Suite estructural: 719 OK, 0 fallidas y 5 omitidas, igual desde PowerShell y desde Git Bash. Los tres `--check`, la guarda de versión,
+    `claude plugin validate --strict` (plugin completo, lite y marketplace) y `tests/acceptance/hooks_practice.sh` (9 PASS) en verde.
+  - CI `structural-tests` en verde en Linux y Windows, en el PR #4 y en el push a `main`. No se revisaron las pruebas omitidas en Linux:
+    los registros de la CI piden iniciar sesión en GitHub.
+  - Las reproducciones de A2, A3 y A4 están en la suite, y «Private vulnerability reporting» está activado (confirmado por la API el 2026-10-16).
+  - Instalación limpia del plugin completo con CLI 2.1.301 en `es` y `en` (comprobada en 1.2.3; en 1.3.0 el plugin completo solo cambia de versión).
+  - **Pendiente:** la regresión con modelo de los casos críticos y de `regression-en` (`scripts/eval.sh`), que necesita Linux, WSL2 con Ubuntu o
+    macOS. El propietario decidió etiquetar sin ella; se hará en cuanto haya un entorno compatible y el resultado irá a `docs/MEASUREMENTS.md`.
+- **Punto 2:** `validate --strict` de la lite en verde, e instalación limpia desde el marketplace local (versión 1.3.0, estilo de salida presente).
+- **Punto 3:** sesión real con la lite y el estilo `senior-engineering-agent-lite:senior-engineering-agent` (CLI 2.1.301, `--plugin-dir`):
+  - el rol sale literal en español y en inglés; sin elegir el estilo, el rol es el genérico;
+  - ante `git reset --hard` con Bash permitido, no lo ejecuta, pide confirmación y el cambio sigue intacto.
+- **Punto 4:** envío nuevo de la lite en el portal; `37c69af` sale «Scan passed», con la política solo con avisos y la publicación solicitada
+  (pendiente del revisor de Anthropic). El envío anterior, el del plugin completo, se retiró.
+
+## [1.2.3] — no etiquetada (sustituida por 1.3.0)
 
 Versión PATCH de endurecimiento, en curso, a partir de una auditoría externa de 1.2.2 (hallazgos A1–A4, M1–M9, B1–B2). Esta entrada recoge lo hecho hasta
 ahora; la etiqueta `v1.2.3` la crea el propietario al cumplir la *Puerta de salida hacia 1.2.3* (más abajo). Este cambio no crea etiquetas.
@@ -242,8 +262,7 @@ Etiqueta `v1.2.2` creada por el propietario el 2026-10-13 sobre `d2e1055`, con G
 - **Punto 1:** suite estructural en verde en Windows (672 OK, 4 omitidas por faltar `zip`, shell POSIX o `bwrap`/`socat` en Windows), los tres `--check` en verde y
   `claude plugin validate --strict` (plugin y marketplace, CLI 2.1.301) en verde.
 - **Punto 2:** `structural-tests` en verde sobre `d2e1055` en `main`.
-- **Punto 3:** el `git diff --stat v1.2.1 v1.2.2` de las rutas indicadas está vacío; `sea_hooks.py` solo cambia en lo descrito arriba. «Private vulnerability reporting» no se
-  pudo comprobar sin sesión en GitHub: lo confirma el propietario.
+- **Punto 3:** el `git diff --stat v1.2.1 v1.2.2` de las rutas indicadas está vacío; `sea_hooks.py` solo cambia en lo descrito arriba. «Private vulnerability reporting» se confirmó activado por la API de GitHub el 2026-10-16.
 
 ## [1.2.1] — 2026-10-11
 
