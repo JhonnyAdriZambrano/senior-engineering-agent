@@ -1634,9 +1634,9 @@ _lite_fm_bad = [f"{os.path.relpath(f, LITE)}: {sorted(_frontmatter_lite(f) or {}
 check("Lite: el frontmatter de las Skills tiene solo name y description, ambos texto (LOCAL_CODE_FRONTMATTER_KEY)", _lite_skills and not _lite_fm_bad,
       "; ".join(_lite_fm_bad[:3]))
 _lsfm = _frontmatter_lite(LITE_STYLE) if os.path.isfile(LITE_STYLE) else None
-check("Lite: el estilo de salida declara solo name, description, keep-coding-instructions: true y force-for-plugin: true",
-      isinstance(_lsfm, dict) and set(_lsfm) == {"name", "description", "keep-coding-instructions", "force-for-plugin"}
-      and _lsfm.get("keep-coding-instructions") is True and _lsfm.get("force-for-plugin") is True, str(_lsfm))
+check("Lite: el estilo de salida declara solo name, description y keep-coding-instructions: true (sin force-for-plugin: el directorio lo rechaza)",
+      isinstance(_lsfm, dict) and set(_lsfm) == {"name", "description", "keep-coding-instructions"}
+      and _lsfm.get("keep-coding-instructions") is True, str(_lsfm))
 if os.path.isfile(LITE_STYLE):
     _ls = open(LITE_STYLE, encoding="utf-8").read()
     _cp = manifest["core_modules"]
@@ -1655,7 +1655,8 @@ _lite_dangling = sorted({f"{os.path.relpath(f, LITE)}: {m}" for f in glob.glob(o
 check("Lite (M2): las rutas del paquete que citan el estilo, las Skills y las plantillas existen dentro de la variante", not _lite_dangling, "; ".join(_lite_dangling[:5]))
 _lrd = read(f"{LITE_REL}/README.md") if exists(f"{LITE_REL}/README.md") else ""
 check("Lite README: instalación de la lite, qué se pierde frente al completo (NN-08, Stop, subagentes) y cómo instalar el completo",
-      all(k in _lrd for k in ("claude plugin install senior-engineering-agent-lite@senior-engineering-agent", "NN-08", "Validation at stop",
+      all(k in _lrd for k in ("claude plugin install senior-engineering-agent-lite@senior-engineering-agent", "/output-style",
+                              '"outputStyle": "senior-engineering-agent-lite:senior-engineering-agent"', "NN-08", "Validation at stop",
                               "subagents", "claude plugin install senior-engineering-agent@senior-engineering-agent", "Apache-2.0")), "falta algún apartado")
 check("Lite: LICENSE y NOTICE idénticos a los de la raíz", exists(f"{LITE_REL}/LICENSE") and read(f"{LITE_REL}/LICENSE") == read("LICENSE")
       and read(f"{LITE_REL}/NOTICE") == read("NOTICE"), "copias distintas")

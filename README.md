@@ -56,13 +56,13 @@ The plugin ships 7 Skills, 2 subagents without write tools (read-only by instruc
 event run in parallel and the documentation does not guarantee their order: each core part carries the header "[Núcleo SEA — parte X de 6 (orden canónico 00→05)]".
 Details and limits: `adapters/claude-code/CLAUDE.md`.
 
-**Lite edition (Claude plugin directory, from 1.3.0).** `senior-engineering-agent-lite` holds only Markdown, JSON and YAML. That is
-the form the Claude plugin directory accepts from organizations that are not Verified. It delivers the full core as an output style
-that Claude Code applies automatically while the plugin is enabled (`force-for-plugin`), plus the 7 Skills. It has **no hooks, scripts
-or subagents**, so NN-08, the project-knowledge check and validation at stop are rules the model follows, not code. Install one
-edition or the other, not both:
-`/plugin install senior-engineering-agent-lite@senior-engineering-agent`. It is a generated view too
-(`plugins/claude-code/senior-engineering-agent-lite/`).
+**Lite edition (Claude plugin directory, from 1.3.0).** `senior-engineering-agent-lite` holds only Markdown, JSON and YAML.
+That is the form the Claude plugin directory accepts from organizations that are not Verified. It delivers the full core as an
+output style plus the 7 Skills. **You have to select the output style once** (`/output-style` →
+`senior-engineering-agent-lite:senior-engineering-agent`); without it you get only the Skills. It has **no hooks, scripts or
+subagents**, so NN-08, the project-knowledge check and validation at stop are rules the model follows, not code. Install one
+edition or the other, not both: `/plugin install senior-engineering-agent-lite@senior-engineering-agent`. It is a generated view
+too (`plugins/claude-code/senior-engineering-agent-lite/`).
 
 **Alternative: manual copy** (no plugin; do not combine both in the same project).
 
@@ -261,7 +261,7 @@ senior-engineering-agent/
 │           │   ├── plugin.json  name, version and listing fields (no userConfig, no icon field)
 │           │   └── icon.png     listing icon at the directory's default path
 │           ├── output-styles/
-│           │   └── senior-engineering-agent.md  core/00-05 as an output style (force-for-plugin)
+│           │   └── senior-engineering-agent.md  core/00-05 as an output style (select it in /output-style)
 │           ├── core/            copy of core/00-05
 │           ├── skills/          copy of adapters/skills/ (paths via ${CLAUDE_PLUGIN_ROOT})
 │           ├── modules/         copy of modules/

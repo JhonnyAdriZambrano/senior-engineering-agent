@@ -39,8 +39,9 @@ completo depende de sus hooks, así que se mantiene tal cual para el marketplace
 ### Añadido
 
 - `plugins/claude-code/senior-engineering-agent-lite/`, una vista generada por `scripts/generate_plugin.py` (con `--check`) que contiene solo Markdown, JSON y YAML:
-  - `output-styles/senior-engineering-agent.md`: el núcleo `core/00–05` completo como estilo de salida, con `force-for-plugin: true` (se aplica al
-    activar el plugin) y `keep-coding-instructions: true`. Una cabecera indica al modelo que haga él mismo lo que en la edición completa hacen los
+  - `output-styles/senior-engineering-agent.md`: el núcleo `core/00–05` completo como estilo de salida con `keep-coding-instructions: true`.
+    El usuario lo elige una vez en `/output-style` (`senior-engineering-agent-lite:senior-engineering-agent`). Sin `force-for-plugin`: el primer envío
+    al directorio (`56f05e5`) lo rechazó con `LOCAL_CODE_FRONTMATTER_KEY`, así que el estilo ya no se aplica solo. Una cabecera indica al modelo que haga él mismo lo que en la edición completa hacen los
     hooks (confirmación antes de operaciones destructivas por NN-08, aviso de conocimiento del proyecto, validación al terminar) y que responda en
     el idioma del usuario, con la tabla de etiquetas en inglés.
   - Las 7 Skills, con la nota de rutas basada en `${CLAUDE_PLUGIN_ROOT}`; además `core/`, `modules/`, `manifest.yaml`, `capabilities.yaml`,
@@ -61,10 +62,9 @@ completo depende de sus hooks, así que se mantiene tal cual para el marketplace
 
 1. La puerta de 1.2.3 (abajo) sobre el commit que se vaya a etiquetar.
 2. `claude plugin validate --strict` de la variante lite e instalación limpia desde el marketplace (versión, estilo de salida presente).
-3. Sesión real con la lite: el estilo forzado se aplica sin seleccionarlo, el agente sigue el núcleo (rol, etiquetas) y pide confirmación antes de
+3. Sesión real con la lite y el estilo seleccionado: el agente sigue el núcleo (rol, etiquetas) y pide confirmación antes de
    un comando destructivo.
-4. Envío nuevo en el portal del directorio con la ruta de la lite y política del directorio superada (`Directory policy` sin bloqueos). Si rechaza
-   `force-for-plugin`, el plan B es quitarlo y que el usuario elija el estilo en `/output-style`.
+4. Envío nuevo en el portal del directorio con la ruta de la lite y política del directorio superada (`Directory policy` sin bloqueos).
 
 ## [1.2.3] — sin publicar (no etiquetada; su contenido sale con 1.3.0)
 

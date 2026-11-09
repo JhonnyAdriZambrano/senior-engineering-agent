@@ -38,9 +38,10 @@ y con frontmatter mínimo. Lleva:
   .claude-plugin/plugin.json   sin userConfig ni campo icon
   .claude-plugin/icon.png      icono en la ruta por defecto que lee el directorio
   output-styles/senior-engineering-agent.md
-                               el núcleo core/00–05 completo como estilo de salida con
-                               force-for-plugin (se aplica al activar el plugin), más una
-                               cabecera con lo que en la edición completa hacen los hooks
+                               el núcleo core/00–05 completo como estilo de salida que el
+                               usuario elige una vez en /output-style (sin force-for-plugin:
+                               el directorio rechazó esa clave), más una cabecera con lo que
+                               en la edición completa hacen los hooks
   skills/                      las 7 Skills; la nota de rutas usa ${CLAUDE_PLUGIN_ROOT}
   core/, modules/, manifest.yaml, capabilities.yaml, SPECIFICATION.md,
   project-knowledge-templates/, README.md, LICENSE, NOTICE
@@ -345,12 +346,12 @@ def expected_files():
 # ---------------------------------------------------------------------------
 LITE_DESCRIPTION_EN = (
     "Content-only edition of the Senior Engineering Agent for the Claude plugin directory: the senior-engineering core "
-    "applied as an output style when the plugin is enabled, plus 7 Skills. No hooks, scripts or subagents; for the "
+    "as an output style you select once with /output-style, plus 7 Skills. No hooks, scripts or subagents; for the "
     "deterministic guards (NN-08, validation at stop) install the full plugin from the GitHub marketplace."
 )
 LITE_DESCRIPTION_ES = (
     "Edición solo de contenido del Senior Engineering Agent para el directorio de plugins de Claude: el núcleo de "
-    "ingeniería senior como estilo de salida que se aplica al activar el plugin, más 7 Skills. Sin hooks, scripts ni "
+    "ingeniería senior como estilo de salida que eliges una vez en /output-style, más 7 Skills. Sin hooks, scripts ni "
     "subagentes; para las guardas deterministas (NN-08, validación al terminar) instala el plugin completo desde el "
     "marketplace de GitHub."
 )
@@ -377,7 +378,6 @@ LITE_STYLE_HEADER = """---
 name: senior-engineering-agent
 description: "Senior Software Engineer and Senior IT Architect: evidence, security, minimal change and explicit certainty labels. / Ingeniero de Software Senior y Arquitecto de TI Senior: evidencia, seguridad, cambio mínimo y etiquetas de certeza explícitas."
 keep-coding-instructions: true
-force-for-plugin: true
 ---
 
 [Senior Engineering Agent Lite — edición solo de contenido]
@@ -443,12 +443,11 @@ LITE_README = """# {name} Lite
 > Content-only edition of the Senior Engineering Agent for the Claude plugin directory. Version {version}.
 
 **What it is.** The same senior-engineering core as the full plugin (identity, non-negotiable rules, certainty labels,
-task workflows), delivered as an output style that Claude Code applies automatically when the plugin is enabled
-(`force-for-plugin`), plus 7 Skills. It has **no hooks, no scripts and no subagents**, so it contains only Markdown,
-JSON and YAML.
+task workflows), delivered as an output style, plus 7 Skills. It has **no hooks, no scripts and no subagents**, so it
+contains only Markdown, JSON and YAML.
 
 **Qué es (español).** El mismo núcleo de ingeniería senior que el plugin completo, entregado como estilo de salida que
-Claude Code aplica al activar el plugin, más 7 Skills. **Sin hooks, scripts ni subagentes.** El núcleo normativo está en
+eliges una vez en `/output-style`, más 7 Skills. **Sin hooks, scripts ni subagentes.** El núcleo normativo está en
 español; el agente responde en el idioma del usuario.
 
 ## Install
@@ -460,18 +459,31 @@ claude plugin marketplace add JhonnyAdriZambrano/senior-engineering-agent
 claude plugin install {id}-lite@{id}
 ```
 
+## Turn it on: select the output style (required)
+
+The core only applies once you select the output style. Without it you get the 7 Skills but not the agent's behaviour.
+Run `/output-style` and choose **senior-engineering-agent-lite:senior-engineering-agent**, or add this to your settings (`~/.claude/settings.json` or
+the project's `.claude/settings.json`):
+
+```json
+{{ "outputStyle": "senior-engineering-agent-lite:senior-engineering-agent" }}
+```
+
+The change applies from the next session. / **Actívalo:** el núcleo solo se aplica si eliges el estilo de salida en
+`/output-style` (**senior-engineering-agent-lite:senior-engineering-agent**) o con `outputStyle` en tus settings; sin él solo tienes las Skills.
+
 ## What you lose compared with the full plugin
 
 | | Full plugin | Lite |
 |---|---|---|
-| Core loaded every session | SessionStart hooks | Output style (forced while the plugin is enabled) |
+| Core loaded every session | SessionStart hooks, automatic | Output style you select once (`/output-style`) |
 | NN-08 (confirmation before destructive commands) | Deterministic hook, fail-closed | Rule followed by the model only |
 | Project knowledge check at start | Hook | Rule followed by the model only |
 | Validation at stop | Hook (blocks once) | Rule followed by the model only |
 | Read-only subagents | 2 | None |
 | Language selector | `/config` → `language` | Answers in the user's language |
 
-The output style replaces any output style you had selected while the plugin is enabled. Do not install both editions
+Selecting this output style replaces the one you had. Do not install both editions
 at the same time. For the deterministic guarantees, install the full plugin instead:
 
 ```bash

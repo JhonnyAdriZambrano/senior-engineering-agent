@@ -123,7 +123,7 @@ senior-engineering-agent/
 │           │   ├── plugin.json  nombre, versión y campos del listing (sin userConfig ni campo icon)
 │           │   └── icon.png     icono del listing en la ruta por defecto del directorio
 │           ├── output-styles/
-│           │   └── senior-engineering-agent.md  core/00-05 como estilo de salida (force-for-plugin)
+│           │   └── senior-engineering-agent.md  core/00-05 como estilo de salida (se elige en /output-style)
 │           ├── core/            copia de core/00-05
 │           ├── skills/          copia de adapters/skills/ (rutas con ${CLAUDE_PLUGIN_ROOT})
 │           ├── modules/         copia de modules/
@@ -198,11 +198,11 @@ Detalle y límites: `adapters/claude-code/CLAUDE.md`.
 
 **Edición lite (directorio de plugins de Claude, desde 1.3.0).** `senior-engineering-agent-lite`
 contiene solo Markdown, JSON y YAML, que es lo que el directorio de plugins de Claude acepta de organizaciones no
-verificadas. Entrega el núcleo completo como estilo de salida que Claude Code aplica
-mientras el plugin está activado (`force-for-plugin`), más las 7 Skills. **No tiene hooks,
-scripts ni subagentes**: NN-08, el aviso de conocimiento del proyecto y la validación
-al terminar son reglas que sigue el modelo, no código. Instala una edición u otra, no
-las dos: `/plugin install senior-engineering-agent-lite@senior-engineering-agent`.
+verificadas. Entrega el núcleo completo como estilo de salida, más las 7 Skills. **Hay que elegir el
+estilo una vez** (`/output-style` → `senior-engineering-agent-lite:senior-engineering-agent`); sin él solo
+tienes las Skills. **No tiene hooks, scripts ni subagentes**: NN-08, el aviso de conocimiento del
+proyecto y la validación al terminar son reglas que sigue el modelo, no código. Instala una edición u otra,
+no las dos: `/plugin install senior-engineering-agent-lite@senior-engineering-agent`.
 También es una vista generada (`plugins/claude-code/senior-engineering-agent-lite/`).
 
 **Idioma (es/en).** Desde 1.2.0 el plugin trae un selector `language` (`es` por
