@@ -1,0 +1,118 @@
+# Capacidades abstractas del agente. El núcleo (core/, modules/) NUNCA nombra
+# una herramienta concreta de una plataforma: solo declara qué capacidad
+# necesita. Cada adaptador resuelve el binding real consultando este archivo.
+# Este es el ÚNICO archivo donde está permitido nombrar herramientas
+# específicas de una plataforma — no se duplica en ningún adaptador.
+#
+# Principio: mismo patrón que MCP aplica a nivel de protocolo (negociar
+# capacidades, no asumir nombres fijos), aplicado aquí a nivel de
+# especificación de comportamiento del agente.
+#
+# ESQUEMA (idéntico para las 8 capacidades):
+#   name, purpose, bindings: {claude-code, codex, cursor, gemini-cli,
+#   chatgpt-projects, gemini-gems, fallback_universal}
+#   regla_transversal (opcional): regla que aplica igual en todos los runtimes.
+#   "SIN BINDING — <motivo>" se usa siempre que un runtime no tenga forma de
+#   resolver la capacidad, en vez de omitir la entrada en silencio.
+
+capabilities:
+
+  - name: USER_INTERACTION
+    purpose: >
+      Preguntar al usuario cuando existe ambigüedad crítica que cambiaría
+      la solución, o cuando hay varios enfoques igualmente válidos.
+    bindings:
+      claude-code: "AskUserQuestion (tool nativa, documentada en Agent SDK; también disponible como claude-agent-sdk)"
+      codex: "sin tool dedicada documentada; diálogo conversacional o gates de aprobación (execpolicy)"
+      cursor: "sin tool dedicada confirmada con fuente primaria en esta investigación; diálogo conversacional"
+      gemini-cli: "sin tool dedicada documentada; diálogo conversacional"
+      chatgpt-projects: "diálogo conversacional (no hay tool dedicada)"
+      gemini-gems: "diálogo conversacional (no hay tool dedicada)"
+      fallback_universal: "diálogo conversacional estándar del entorno"
+
+  - name: FILE_SYSTEM
+    purpose: "Leer y escribir archivos del repositorio."
+    bindings:
+      claude-code: [Read, Write, Edit, Glob, Grep]
+      codex: "shell / apply_patch"
+      cursor: "tool nativo del Agent (edición de archivos)"
+      gemini-cli: "read_file / write_file / replace / read_many_files"
+      chatgpt-projects: "SIN BINDING — no hay sistema de archivos real, declarar ausencia explícita"
+      gemini-gems: "SIN BINDING — no hay sistema de archivos real, declarar ausencia explícita"
+      fallback_universal: "SIN BINDING salvo confirmación explícita de que el runtime lo expone"
+
+  - name: TERMINAL
+    purpose: "Ejecutar comandos, compilar, correr tests y linters."
+    bindings:
+      claude-code: Bash
+      codex: "codex exec / shell (sandbox Seatbelt/Landlock/restricted-token según SO)"
+      cursor: "terminal integrada del Agent"
+      gemini-cli: "shell tool"
+      chatgpt-projects: "SIN BINDING"
+      gemini-gems: "SIN BINDING"
+      fallback_universal: "SIN BINDING salvo confirmación explícita de que el runtime lo expone"
+
+  - name: CODE_SEARCH
+    purpose: "Buscar símbolos, referencias y definiciones en el repositorio."
+    bindings:
+      claude-code: [Grep, Glob]
+      codex: "búsqueda nativa del CLI"
+      cursor: "búsqueda nativa / @codebase"
+      gemini-cli: "read_many_files + glob"
+      chatgpt-projects: "SIN BINDING"
+      gemini-gems: "SIN BINDING"
+      fallback_universal: "SIN BINDING salvo confirmación explícita de que el runtime lo expone"
+
+  - name: GIT
+    purpose: >
+      Inspeccionar historial y, únicamente con autorización explícita,
+      modificarlo (commit/push/reset).
+    bindings:
+      claude-code: "comandos git vía TERMINAL (Bash)"
+      codex: "comandos git vía TERMINAL (shell/codex exec)"
+      cursor: "comandos git vía terminal integrada"
+      gemini-cli: "comandos git vía TERMINAL (shell tool)"
+      chatgpt-projects: "SIN BINDING"
+      gemini-gems: "SIN BINDING"
+      fallback_universal: "SIN BINDING salvo confirmación explícita de que el runtime lo expone"
+    regla_transversal: >
+      Operaciones destructivas (reset, force push, eliminación masiva)
+      requieren autorización explícita del usuario en TODOS los runtimes,
+      sin excepción (NN-08 del núcleo).
+
+  - name: WEB_DOCUMENTATION
+    purpose: >
+      Verificar documentación oficial/actual antes de afirmar comportamiento
+      sensible a versión.
+    bindings:
+      claude-code: "servidor MCP de documentación si está configurado en .mcp.json; si no, WebSearch/WebFetch nativo"
+      codex: "servidor MCP de documentación si está configurado en ~/.codex/config.toml (confirmado: MCP docs oficiales de OpenAI); si no, búsqueda nativa del entorno"
+      cursor: "servidor MCP conectado si existe (Cursor es cliente MCP confirmado); si no, búsqueda nativa del Agent"
+      gemini-cli: "servidor MCP conectado si existe (Gemini CLI es cliente MCP confirmado); si no, búsqueda nativa"
+      chatgpt-projects: "servidor MCP vía Apps SDK si está conectado (ChatGPT adoptó MCP en 2025); si no, búsqueda nativa de ChatGPT"
+      gemini-gems: "SIN BINDING confirmado — sin evidencia en esta investigación de soporte MCP ni de búsqueda propia más allá de los archivos de Knowledge"
+      fallback_universal: "búsqueda web nativa del entorno si existe; si no, declarar la limitación"
+
+  - name: EXTERNAL_TOOLS
+    purpose: >
+      Cualquier integración externa: trackers de tickets, mensajería,
+      bases de datos, APIs internas de la organización.
+    bindings:
+      claude-code: "servidores MCP configurados en .mcp.json del proyecto"
+      codex: "servidores MCP configurados en ~/.codex/config.toml"
+      cursor: "servidores MCP configurados en la configuración de Cursor"
+      gemini-cli: "servidores MCP configurados en settings.json"
+      chatgpt-projects: "conectores/Apps MCP habilitados en la cuenta, si existen"
+      gemini-gems: "SIN BINDING — sin evidencia de soporte de integraciones externas más allá de archivos de Knowledge"
+      fallback_universal: "declarar explícitamente que la capacidad no está disponible en este runtime; nunca simular su existencia"
+
+  - name: VISUAL_INSPECTION
+    purpose: "Verificar visualmente interfaces renderizadas."
+    bindings:
+      claude-code: "SIN BINDING — no afirmar verificación visual"
+      codex: "SIN BINDING — no afirmar verificación visual"
+      cursor: "SIN BINDING — no afirmar verificación visual"
+      gemini-cli: "SIN BINDING — no afirmar verificación visual"
+      chatgpt-projects: "SIN BINDING — no afirmar verificación visual"
+      gemini-gems: "SIN BINDING — no afirmar verificación visual"
+      fallback_universal: "SIN BINDING — no afirmar verificación visual"

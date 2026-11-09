@@ -7,7 +7,8 @@ instalado no recibirían la actualización (Claude Code fija el plugin a su `ver
 Falla (salida 1) cuando:
   - `plugin.json.version` o `manifest.yaml > agent.version` no tienen la forma X.Y.Z, o no coinciden;
   - la versión es MENOR que la de la última etiqueta (regresión), o el plugin cambió desde la etiqueta
-    (`git diff --quiet <etiqueta> HEAD -- plugins/claude-code/senior-engineering-agent`) y la versión no es mayor;
+    (`git diff --quiet <etiqueta> HEAD -- plugins/claude-code/senior-engineering-agent{,-lite}`) y la versión no es mayor;
+  - la variante lite existe y su versión no coincide con la del plugin completo;
   - HEAD lleva una etiqueta `v*` que no coincide con la versión (en ese caso se compara además con la etiqueta anterior);
   - git falla (sin repositorio, historial incompleto…): un error de git no se confunde con «no hay etiquetas».
 Sin etiquetas `v*`, solo comprueba el formato y la coincidencia. Requiere el historial y las etiquetas (en la CI:
@@ -23,6 +24,7 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PLUGIN_REL = "plugins/claude-code/senior-engineering-agent"
+LITE_REL = "plugins/claude-code/senior-engineering-agent-lite"  # variante del directorio (1.3.0): misma versión, misma guarda
 SEMVER = re.compile(r"^(\d+)\.(\d+)\.(\d+)$")
 
 
@@ -80,6 +82,14 @@ def main():
         print(f"FALLA: plugin.json.version ({version}) y manifest.yaml agent.version ({mversion}) deben ser X.Y.Z e iguales. "
               "Regenera con scripts/generate_plugin.py.")
         return 1
+    lite_json = os.path.join(ROOT, LITE_REL, ".claude-plugin", "plugin.json")
+    if os.path.isfile(lite_json):
+        with open(lite_json, encoding="utf-8") as f:
+            lversion = json.load(f).get("version")
+        if lversion != version:
+            print(f"FALLA: la variante lite declara {lversion} y el plugin completo {version}; deben ser iguales. "
+                  "Regenera con scripts/generate_plugin.py.")
+            return 1
     try:
         git_ok("rev-parse", "--is-inside-work-tree")
         tag = last_tag("HEAD")
@@ -95,7 +105,7 @@ def main():
             if not tag:
                 print(f"Guarda de versión: OK (HEAD = {version}, sin etiqueta anterior).")
                 return 0
-        changed = git("diff", "--quiet", tag, "HEAD", "--", PLUGIN_REL).returncode
+        changed = git("diff", "--quiet", tag, "HEAD", "--", PLUGIN_REL, LITE_REL).returncode
         if changed not in (0, 1):
             raise GitError(f"git diff {tag} HEAD -> {changed}")
     except GitError as e:

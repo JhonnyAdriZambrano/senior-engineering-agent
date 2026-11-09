@@ -98,26 +98,38 @@ senior-engineering-agent/
 │   └── chatgpt-and-gems/        instrucciones comprimidas + archivos adjuntos
 ├── plugins/
 │   └── claude-code/
-│       └── senior-engineering-agent/   plugin de Claude Code GENERADO (scripts/generate_plugin.py)
+│       ├── senior-engineering-agent/   plugin de Claude Code GENERADO (scripts/generate_plugin.py)
+│       │   ├── .claude-plugin/
+│       │   │   └── plugin.json  nombre, versión, keywords, icon y el userConfig de idioma (de manifest.yaml)
+│       │   ├── icon.png         icono del plugin (copia de adapters/claude-code/icon.png)
+│       │   ├── LICENSE          copia de la licencia
+│       │   ├── NOTICE           copia del aviso
+│       │   ├── core/            copia de core/00-05
+│       │   ├── skills/          copia de adapters/skills/
+│       │   ├── agents/          copia de adapters/claude-code/agents/
+│       │   ├── hooks/
+│       │   │   └── hooks.json   un SessionStart por archivo de core/, más PreToolUse y Stop
+│       │   ├── adapters/
+│       │   │   └── hooks/
+│       │   │       ├── sea_hooks.py  misma ruta relativa que en la fuente
+│       │   │       └── i18n.json     copia de adapters/hooks/i18n.json
+│       │   ├── project-knowledge-templates/  plantillas que el hook SessionStart necesita
+│       │   ├── scripts/
+│       │   │   └── sea-python.sh  lanzador de Python (python3 | python | py -3)
+│       │   └── evals/           casos de `claude plugin eval` (escritos a mano, versionados)
+│       │       └── README.md    qué se automatiza y criterio → grader
+│       └── senior-engineering-agent-lite/  edición GENERADA solo de contenido para el directorio de plugins de Claude (sin hooks, scripts ni subagentes)
 │           ├── .claude-plugin/
-│           │   └── plugin.json  nombre, versión, keywords, icon y el userConfig de idioma (de manifest.yaml)
-│           ├── icon.png         icono del plugin (copia de adapters/claude-code/icon.png)
-│           ├── LICENSE          copia de la licencia
-│           ├── NOTICE           copia del aviso
+│           │   ├── plugin.json  nombre, versión y campos del listing (sin userConfig ni campo icon)
+│           │   └── icon.png     icono del listing en la ruta por defecto del directorio
+│           ├── output-styles/
+│           │   └── senior-engineering-agent.md  core/00-05 como estilo de salida (se elige en /output-style)
 │           ├── core/            copia de core/00-05
-│           ├── skills/          copia de adapters/skills/
-│           ├── agents/          copia de adapters/claude-code/agents/
-│           ├── hooks/
-│           │   └── hooks.json   un SessionStart por archivo de core/, más PreToolUse y Stop
-│           ├── adapters/
-│           │   └── hooks/
-│           │       ├── sea_hooks.py  misma ruta relativa que en la fuente
-│           │       └── i18n.json     copia de adapters/hooks/i18n.json
-│           ├── project-knowledge-templates/  plantillas que el hook SessionStart necesita
-│           ├── scripts/
-│           │   └── sea-python.sh  lanzador de Python (python3 | python | py -3)
-│           └── evals/           casos de `claude plugin eval` (escritos a mano, versionados)
-│               └── README.md    qué se automatiza y criterio → grader
+│           ├── skills/          copia de adapters/skills/ (rutas con ${CLAUDE_PLUGIN_ROOT})
+│           ├── modules/         copia de modules/
+│           ├── project-knowledge-templates/  plantillas que usa la Skill project-knowledge-bootstrap
+│           ├── LICENSE          copia de la licencia
+│           └── NOTICE           copia del aviso
 ├── project-knowledge-templates/ plantillas que copias a TU proyecto real
 ├── docs/
 │   ├── ADDING_A_RUNTIME.md      contrato para construir un adaptador nuevo
@@ -183,6 +195,15 @@ En Windows se recomienda Git Bash para los hooks. Los hooks de un mismo evento
 corren en paralelo y la documentación no garantiza su orden: cada parte del
 núcleo lleva la cabecera «[Núcleo SEA — parte X de 6 (orden canónico 00→05)]».
 Detalle y límites: `adapters/claude-code/CLAUDE.md`.
+
+**Edición lite (directorio de plugins de Claude, desde 1.3.0).** `senior-engineering-agent-lite`
+contiene solo Markdown, JSON y YAML, que es lo que el directorio de plugins de Claude acepta de organizaciones no
+verificadas. Entrega el núcleo completo como estilo de salida, más las 7 Skills. **Hay que elegir el
+estilo una vez** (`/output-style` → `senior-engineering-agent-lite:senior-engineering-agent`); sin él solo
+tienes las Skills. **No tiene hooks, scripts ni subagentes**: NN-08, el aviso de conocimiento del
+proyecto y la validación al terminar son reglas que sigue el modelo, no código. Instala una edición u otra,
+no las dos: `/plugin install senior-engineering-agent-lite@senior-engineering-agent`.
+También es una vista generada (`plugins/claude-code/senior-engineering-agent-lite/`).
 
 **Idioma (es/en).** Desde 1.2.0 el plugin trae un selector `language` (`es` por
 defecto, `en`) en `userConfig`: aparece en `/config` → *senior-engineering-agent*

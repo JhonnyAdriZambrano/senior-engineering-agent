@@ -1581,6 +1581,90 @@ if mj is not None:
           str(e0.get("source")))
     check("marketplace.json: la entrada no fija 'version' (la fuente es plugin.json; evita deriva)", "version" not in e0, "quita version de la entrada")
 
+# Variante lite (1.3.0): edición solo de contenido para el directorio de plugins de Claude. Su política, para organizaciones no
+# verificadas, rechaza hooks de cualquier tipo (LOCAL_CODE_HOOK_COMMAND), archivos que no sean Markdown/texto/JSON/YAML/imagen o que
+# empiecen por #! (LOCAL_CODE_FILE_TYPE) y claves de frontmatter fuera de su lista (LOCAL_CODE_FRONTMATTER_KEY; lista no pública).
+LITE_REL = "plugins/claude-code/senior-engineering-agent-lite"
+LITE = os.path.join(ROOT, LITE_REL)
+LITE_STYLE = os.path.join(LITE, "output-styles", "senior-engineering-agent.md")
+_lite_files = sorted(os.path.relpath(os.path.join(dp, f), LITE).replace(os.sep, "/") for dp, dn, fn in os.walk(LITE) for f in fn) if os.path.isdir(LITE) else []
+check("Lite: existe y lleva plugin.json, el estilo de salida y las 7 Skills", bool(_lite_files) and ".claude-plugin/plugin.json" in _lite_files
+      and "output-styles/senior-engineering-agent.md" in _lite_files
+      and len([f for f in _lite_files if f.startswith("skills/") and f.endswith("/SKILL.md")]) == len(manifest["conditional_modules"]), LITE_REL)
+lpj = load_json(LITE_REL + "/.claude-plugin/plugin.json") if _lite_files else None
+if lpj is not None:
+    check("Lite plugin.json: name = agent.id + '-lite', version = agent.version, licencia y autor del plugin completo",
+          lpj.get("name") == manifest["agent"]["id"] + "-lite" and lpj.get("version") == manifest["agent"]["version"]
+          and lpj.get("license") == "Apache-2.0" and lpj.get("author") == (pj or {}).get("author"), str(lpj.get("name")))
+    check("Lite plugin.json: sin userConfig, icon, hooks, agents, mcpServers ni campos fuera de la documentación",
+          set(lpj) <= {"name", "displayName", "version", "description", "author", "homepage", "license", "repository", "keywords",
+                       "privacyPolicyUrl", "supportUrl"}, str(sorted(lpj)))
+_lite_top = {f.split("/", 1)[0] for f in _lite_files}
+check("Lite: sin hooks/, agents/, scripts/, adapters/ ni evals/ (política del directorio)",
+      not _lite_top & {"hooks", "agents", "scripts", "adapters", "evals", "commands", "bin"}, str(sorted(_lite_top)))
+_LITE_EXT = (".md", ".txt", ".json", ".yaml", ".yml")
+_LITE_ICON = ".claude-plugin/icon.png"  # ruta por defecto del icono del listing; único binario admitido
+_lite_bad_type = [f for f in _lite_files if not f.endswith(_LITE_EXT) and f not in ("LICENSE", "NOTICE", _LITE_ICON)]
+check("Lite: .claude-plugin/icon.png es el icono del plugin completo (PNG cuadrado), sin campo «icon» en plugin.json",
+      _LITE_ICON in _lite_files and open(os.path.join(LITE, _LITE_ICON), "rb").read() == open(os.path.join(ROOT, "adapters", "claude-code", "icon.png"), "rb").read()
+      and "icon" not in (lpj or {}), "falta o difiere")
+_lite_bad_content = []
+for _f in (f for f in _lite_files if f != _LITE_ICON):
+    _b = open(os.path.join(LITE, _f), "rb").read()
+    try:
+        _b.decode("utf-8")
+    except UnicodeDecodeError:
+        _lite_bad_content.append(f"{_f} (no UTF-8)")
+        continue
+    if _b.startswith(b"#!") or b"\x00" in _b:
+        _lite_bad_content.append(f"{_f} (#! o NUL)")
+check(f"Lite: los {len(_lite_files)} archivos son Markdown/texto/JSON/YAML (o LICENSE/NOTICE), UTF-8, sin #! ni NUL (LOCAL_CODE_FILE_TYPE)",
+      bool(_lite_files) and not _lite_bad_type and not _lite_bad_content, "; ".join((_lite_bad_type + _lite_bad_content)[:5]))
+_lite_skills = [os.path.join(LITE, f) for f in _lite_files if f.startswith("skills/") and f.endswith("/SKILL.md")]
+
+
+def _frontmatter_lite(path):
+    m = re.match(r"---\n(.*?)\n---\n", open(path, encoding="utf-8").read(), re.S)
+    return (yaml.safe_load(m.group(1)) or {}) if m else None
+
+
+_lite_fm_bad = [f"{os.path.relpath(f, LITE)}: {sorted(_frontmatter_lite(f) or {})}" for f in _lite_skills
+                if not isinstance(_frontmatter_lite(f), dict) or set(_frontmatter_lite(f)) != {"name", "description"}
+                or not all(isinstance(v, str) for v in _frontmatter_lite(f).values())]
+check("Lite: el frontmatter de las Skills tiene solo name y description, ambos texto (LOCAL_CODE_FRONTMATTER_KEY)", _lite_skills and not _lite_fm_bad,
+      "; ".join(_lite_fm_bad[:3]))
+_lsfm = _frontmatter_lite(LITE_STYLE) if os.path.isfile(LITE_STYLE) else None
+check("Lite: el estilo de salida declara solo name, description y keep-coding-instructions: true (sin force-for-plugin: el directorio lo rechaza)",
+      isinstance(_lsfm, dict) and set(_lsfm) == {"name", "description", "keep-coding-instructions"}
+      and _lsfm.get("keep-coding-instructions") is True, str(_lsfm))
+if os.path.isfile(LITE_STYLE):
+    _ls = open(LITE_STYLE, encoding="utf-8").read()
+    _cp = manifest["core_modules"]
+    _pos = [_ls.find(f"[Núcleo SEA — parte {n} de {len(_cp)} (orden canónico 00→05): {p}]\n\n" + read(p).rstrip("\n")) for n, p in enumerate(_cp, 1)]
+    check("Lite: el estilo contiene core/00–05 íntegros, con su cabecera y en el orden de manifest.yaml", all(p > 0 for p in _pos) and _pos == sorted(_pos),
+          f"posiciones {_pos}")
+    check("Lite: el estilo suple lo que hacen los hooks (NN-08, conocimiento del proyecto, validación, subagentes) y lleva la tabla de etiquetas en inglés",
+          all(k in _ls for k in ("NN-08", "project-knowledge-bootstrap", "NN-06b", "Validación al terminar", "Subagentes", manifest["i18n"]["role"]["en"]))
+          and all(f"{es} -> {en}" in _ls for es, en in manifest["i18n"]["labels_en"].items()), "falta alguna directiva o etiqueta")
+check("Lite: la nota de rutas de las Skills usa ${CLAUDE_PLUGIN_ROOT} (sin la línea «[SEA] Rutas citadas…» del SessionStart)",
+      _lite_skills and all("`${CLAUDE_PLUGIN_ROOT}`" in open(f, encoding="utf-8").read() and "[SEA] Rutas citadas" not in open(f, encoding="utf-8").read()
+                           for f in _lite_skills), "nota de rutas inesperada")
+_lite_dangling = sorted({f"{os.path.relpath(f, LITE)}: {m}" for f in glob.glob(os.path.join(LITE, "**", "*.md"), recursive=True)
+                         if os.path.basename(f) not in ("README.md", "SPECIFICATION.md")
+                         for m in _ref_re.findall(open(f, encoding="utf-8").read()) if not os.path.exists(os.path.join(LITE, m))})
+check("Lite (M2): las rutas del paquete que citan el estilo, las Skills y las plantillas existen dentro de la variante", not _lite_dangling, "; ".join(_lite_dangling[:5]))
+_lrd = read(f"{LITE_REL}/README.md") if exists(f"{LITE_REL}/README.md") else ""
+check("Lite README: instalación de la lite, qué se pierde frente al completo (NN-08, Stop, subagentes) y cómo instalar el completo",
+      all(k in _lrd for k in ("claude plugin install senior-engineering-agent-lite@senior-engineering-agent", "/output-style",
+                              '"outputStyle": "senior-engineering-agent-lite:senior-engineering-agent"', "NN-08", "Validation at stop",
+                              "subagents", "claude plugin install senior-engineering-agent@senior-engineering-agent", "Apache-2.0")), "falta algún apartado")
+check("Lite: LICENSE y NOTICE idénticos a los de la raíz", exists(f"{LITE_REL}/LICENSE") and read(f"{LITE_REL}/LICENSE") == read("LICENSE")
+      and read(f"{LITE_REL}/NOTICE") == read("NOTICE"), "copias distintas")
+if mj is not None:
+    _e1 = next((e for e in mj.get("plugins") or [] if e.get("name") == (lpj or {}).get("name")), {})
+    check("marketplace.json: entrada de la lite con source './…-lite', sin 'version' y avisando de no instalar ambas",
+          _e1.get("source") == "./" + LITE_REL and "version" not in _e1 and "Do not install together" in _e1.get("description", ""), str(_e1.get("source")))
+
 # evals versionados dentro del plugin; resultados fuera del repo
 EVALS = os.path.join(PLUGIN, "evals")
 EVAL_CASES = sorted(d for d in os.listdir(EVALS) if os.path.isfile(os.path.join(EVALS, d, "prompt.md")))
@@ -2529,6 +2613,14 @@ if shutil.which("git"):
         rc, out = run()
         if rc != 0 or "v1.0.0" not in out:
             _vg_bad.append(f"release etiquetada: compara con la etiqueta anterior: rc={rc} {out[:80]}")
+        _vg_lite = os.path.join(rp, "plugins", "claude-code", "senior-engineering-agent-lite", ".claude-plugin")
+        os.makedirs(_vg_lite)
+        with open(os.path.join(_vg_lite, "plugin.json"), "w", encoding="utf-8") as f:
+            _json.dump({"version": "1.0.0"}, f)
+        rc, out = run()
+        if rc != 1 or "lite" not in out:
+            _vg_bad.append(f"lite con otra versión: rc={rc} {out[:80]}")
+        shutil.rmtree(os.path.dirname(_vg_lite))
         with open(os.path.join(rp, "manifest.yaml"), "w", encoding="utf-8") as f:
             f.write('agent:\n  version: "1.0.2"\n')
         rc, out = run()
